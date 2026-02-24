@@ -1,4 +1,4 @@
-import { streamText, type UIMessage, stepCountIs, convertToModelMessages } from "ai";
+import { streamText, type UIMessage, convertToModelMessages, stepCountIs } from "ai";
 import { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
     messages: modelMessages,
     tools,
     stopWhen: stepCountIs(5),
+    toolChoice: "auto",
     onFinish: async ({ text }) => {
       if (text) {
         await saveChatMessage(user.id, "assistant", text);

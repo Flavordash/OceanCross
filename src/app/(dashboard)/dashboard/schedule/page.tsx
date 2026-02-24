@@ -18,7 +18,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, CalendarDays, LayoutList } from "lucide-react";
+import { ResourceTimeline } from "@/components/schedule/resource-timeline";
+import { DispatchModal } from "@/components/dispatch/dispatch-modal";
+import { ReturnModal } from "@/components/dispatch/return-modal";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -35,6 +38,7 @@ interface ScheduleEvent {
   aircraftReg: string | null;
   instructorName: string | null;
   studentName: string | null;
+  dispatchStatus?: string | null;
 }
 
 interface LookupData {
@@ -92,6 +96,10 @@ export default function SchedulePage() {
   const [lookup, setLookup] = useState<LookupData | null>(null);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
+  // View mode
+  const [view, setView] = useState<"calendar" | "resources">("calendar");
+  const [resourceDate, setResourceDate] = useState(new Date());
+
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<EventForm>(EMPTY_FORM);
@@ -100,28 +108,44 @@ export default function SchedulePage() {
 
   // Detail/edit dialog
   const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(
-    null
-  );
+  const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<EventForm>(EMPTY_FORM);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
+  // Dispatch/Return modals
+  const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [dispatchEventId, setDispatchEventId] = useState("");
+
   // ── Data loading ─────────────────────────────────────
 
   const fetchEvents = useCallback(async () => {
-    if (!dateRange.start) return;
-    const params = new URLSearchParams({
-      start: dateRange.start,
-      end: dateRange.end,
-    });
+    if (view === "calendar" && !dateRange.start) return;
+
+    let params: URLSearchParams;
+    if (view === "resources") {
+      const dayStart = new Date(resourceDate);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(resourceDate);
+      dayEnd.setHours(23, 59, 59, 999);
+      params = new URLSearchParams({
+        start: dayStart.toISOString(),
+        end: dayEnd.toISOString(),
+      });
+    } else {
+      params = new URLSearchParams({
+        start: dateRange.start,
+        end: dateRange.end,
+      });
+    }
+
     const res = await fetch(`/api/schedule?${params}`);
     if (res.ok) {
-      const data = await res.json();
-      setEvents(data);
+      setEvents(await res.json());
     }
-  }, [dateRange]);
+  }, [dateRange, view, resourceDate]);
 
   useEffect(() => {
     fetchEvents();
@@ -172,10 +196,43 @@ export default function SchedulePage() {
 
   function handleEventClick(arg: EventClickArg) {
     const e = arg.event.extendedProps as ScheduleEvent;
+    openEventDetail(e);
+  }
+
+  function openEventDetail(e: ScheduleEvent) {
     setSelectedEvent(e);
     setEditing(false);
     setEditError(null);
     setDetailOpen(true);
+  }
+
+  // ── Dispatch helpers ──────────────────────────────────
+
+  const canDispatch = (e: ScheduleEvent) =>
+    (e.type === "flight_training" || e.type === "exam") &&
+    e.aircraftId &&
+    e.status === "scheduled" &&
+    !e.dispatchStatus;
+
+  const canReturn = (e: ScheduleEvent) =>
+    e.dispatchStatus === "dispatched";
+
+  function openDispatch() {
+    if (!selectedEvent) return;
+    setDispatchEventId(selectedEvent.id);
+    setDetailOpen(false);
+    setDispatchOpen(true);
+  }
+
+  function openReturn() {
+    if (!selectedEvent) return;
+    setDispatchEventId(selectedEvent.id);
+    setDetailOpen(false);
+    setReturnOpen(true);
+  }
+
+  function handleDispatchComplete() {
+    fetchEvents();
   }
 
   // ── Create ───────────────────────────────────────────
@@ -427,23 +484,47 @@ export default function SchedulePage() {
             Manage flights, maintenance, and training
           </p>
         </div>
-        <Button
-          onClick={() => {
-            const now = new Date();
-            const later = new Date(now.getTime() + 60 * 60 * 1000);
-            setForm({
-              ...EMPTY_FORM,
-              startTime: toLocalDatetime(now.toISOString()),
-              endTime: toLocalDatetime(later.toISOString()),
-            });
-            setFormError(null);
-            setCreateOpen(true);
-          }}
-          className="bg-[#1A6FB5] hover:bg-[#155d99]"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          New Event
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* View Toggle */}
+          <div className="flex rounded-lg border overflow-hidden">
+            <Button
+              variant={view === "calendar" ? "default" : "ghost"}
+              size="sm"
+              className={view === "calendar" ? "bg-[#1A6FB5] hover:bg-[#155d99] rounded-none" : "rounded-none"}
+              onClick={() => setView("calendar")}
+            >
+              <CalendarDays className="h-4 w-4 mr-1" />
+              Calendar
+            </Button>
+            <Button
+              variant={view === "resources" ? "default" : "ghost"}
+              size="sm"
+              className={view === "resources" ? "bg-[#1A6FB5] hover:bg-[#155d99] rounded-none" : "rounded-none"}
+              onClick={() => setView("resources")}
+            >
+              <LayoutList className="h-4 w-4 mr-1" />
+              Resources
+            </Button>
+          </div>
+
+          <Button
+            onClick={() => {
+              const now = new Date();
+              const later = new Date(now.getTime() + 60 * 60 * 1000);
+              setForm({
+                ...EMPTY_FORM,
+                startTime: toLocalDatetime(now.toISOString()),
+                endTime: toLocalDatetime(later.toISOString()),
+              });
+              setFormError(null);
+              setCreateOpen(true);
+            }}
+            className="bg-[#1A6FB5] hover:bg-[#155d99]"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Event
+          </Button>
+        </div>
       </div>
 
       {/* Legend */}
@@ -459,35 +540,48 @@ export default function SchedulePage() {
         ))}
       </div>
 
-      {/* Calendar */}
-      <div className="rounded-lg border bg-white p-2 sm:p-4">
-        <FullCalendar
-          ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="timeGridWeek"
-          headerToolbar={{
-            left: "prev,next today",
-            center: "title",
-            right: "dayGridMonth,timeGridWeek,timeGridDay",
-          }}
-          events={calendarEvents}
-          dateClick={handleDateClick}
-          eventClick={handleEventClick}
-          datesSet={handleDatesSet}
-          height="auto"
-          slotMinTime="06:00:00"
-          slotMaxTime="22:00:00"
-          allDaySlot={false}
-          nowIndicator
-          editable={false}
-          selectable={false}
-          eventTimeFormat={{
-            hour: "numeric",
-            minute: "2-digit",
-            meridiem: "short",
-          }}
+      {/* Calendar View */}
+      {view === "calendar" && (
+        <div className="rounded-lg border bg-white p-2 sm:p-4">
+          <FullCalendar
+            ref={calendarRef}
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            initialView="timeGridWeek"
+            headerToolbar={{
+              left: "prev,next today",
+              center: "title",
+              right: "dayGridMonth,timeGridWeek,timeGridDay",
+            }}
+            events={calendarEvents}
+            dateClick={handleDateClick}
+            eventClick={handleEventClick}
+            datesSet={handleDatesSet}
+            height="auto"
+            slotMinTime="06:00:00"
+            slotMaxTime="22:00:00"
+            allDaySlot={false}
+            nowIndicator
+            editable={false}
+            selectable={false}
+            eventTimeFormat={{
+              hour: "numeric",
+              minute: "2-digit",
+              meridiem: "short",
+            }}
+          />
+        </div>
+      )}
+
+      {/* Resource Timeline View */}
+      {view === "resources" && lookup && (
+        <ResourceTimeline
+          date={resourceDate}
+          aircraft={lookup.aircraft}
+          events={events}
+          onEventClick={openEventDetail}
+          onDateChange={setResourceDate}
         />
-      </div>
+      )}
 
       {/* ── Create Dialog ─────────────────────────────── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -539,6 +633,15 @@ export default function SchedulePage() {
                     {EVENT_LABELS[selectedEvent.type] ?? selectedEvent.type}
                   </Badge>
                   <Badge variant="secondary">{selectedEvent.status}</Badge>
+                  {selectedEvent.dispatchStatus && (
+                    <Badge variant="outline" className={
+                      selectedEvent.dispatchStatus === "dispatched"
+                        ? "bg-yellow-100 text-yellow-700"
+                        : "bg-green-100 text-green-700"
+                    }>
+                      {selectedEvent.dispatchStatus}
+                    </Badge>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
@@ -580,6 +683,26 @@ export default function SchedulePage() {
                   Delete
                 </Button>
                 <div className="flex gap-2">
+                  {canDispatch(selectedEvent) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-green-500 text-green-700 hover:bg-green-50"
+                      onClick={openDispatch}
+                    >
+                      Dispatch
+                    </Button>
+                  )}
+                  {canReturn(selectedEvent) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-blue-500 text-blue-700 hover:bg-blue-50"
+                      onClick={openReturn}
+                    >
+                      Return
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -629,6 +752,22 @@ export default function SchedulePage() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* ── Dispatch Modal ────────────────────────────── */}
+      <DispatchModal
+        open={dispatchOpen}
+        onOpenChange={setDispatchOpen}
+        eventId={dispatchEventId}
+        onDispatched={handleDispatchComplete}
+      />
+
+      {/* ── Return Modal ──────────────────────────────── */}
+      <ReturnModal
+        open={returnOpen}
+        onOpenChange={setReturnOpen}
+        eventId={dispatchEventId}
+        onReturned={handleDispatchComplete}
+      />
     </div>
   );
 }

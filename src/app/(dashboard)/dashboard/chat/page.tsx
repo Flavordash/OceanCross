@@ -202,9 +202,10 @@ export default function ChatPage() {
             </p>
             <div className="flex flex-wrap gap-2 mt-3 justify-center">
               {[
+                "Book a flight training tomorrow 9 AM to 11 AM",
                 "What's my schedule this week?",
-                "내일 오전에 비행 예약 가능해?",
-                "Show aircraft status",
+                "Show available aircraft",
+                "Schedule a ground school class on Friday at 2 PM",
               ].map((q) => (
                 <button
                   key={q}
@@ -258,7 +259,7 @@ export default function ChatPage() {
                         className="flex items-center gap-2 text-xs text-muted-foreground"
                       >
                         <Loader2 className="h-3 w-3 animate-spin" />
-                        Running {toolPart.toolName.replace("_", " ")}...
+                        Running {(toolPart.toolName ?? "tool").replace("_", " ")}...
                       </div>
                     );
                   }

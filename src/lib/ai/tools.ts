@@ -10,6 +10,7 @@ import {
   getStudents,
 } from "@/lib/db/schedule";
 import { getAllAircraft } from "@/lib/db/aircraft";
+import { getAircraftReminders } from "@/lib/db/reminders";
 
 const checkAvailabilityParams = z.object({
   startDate: z.string().describe("Start date in ISO format (e.g. 2025-01-15)"),
@@ -205,6 +206,31 @@ export function createTools(userId: string, userRole: string) {
             start: String(event.startTime),
             end: String(event.endTime),
           },
+        };
+      },
+    }),
+
+    get_aircraft_reminders: tool({
+      description:
+        "Get maintenance reminders for a specific aircraft, including status (expired, warning, ok) and remaining hours/days",
+      inputSchema: z.object({
+        aircraftId: z.string().describe("The UUID of the aircraft"),
+      }),
+      execute: async (params: { aircraftId: string }) => {
+        const reminders = await getAircraftReminders(params.aircraftId);
+        return {
+          reminders: reminders.map((r) => ({
+            name: r.name,
+            type: r.type,
+            status: r.status,
+            hoursRemaining: r.hoursRemaining,
+            daysRemaining: r.daysRemaining,
+            dueHours: r.dueHours,
+            dueDate: r.dueDate ? String(r.dueDate) : null,
+          })),
+          total: reminders.length,
+          expired: reminders.filter((r) => r.status === "expired").length,
+          warning: reminders.filter((r) => r.status === "warning").length,
         };
       },
     }),

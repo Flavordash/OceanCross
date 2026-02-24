@@ -71,6 +71,7 @@ export async function getEvents(filters?: {
       aircraftId: scheduleEvents.aircraftId,
       instructorId: scheduleEvents.instructorId,
       studentId: scheduleEvents.studentId,
+      dispatchStatus: scheduleEvents.dispatchStatus,
       aircraftReg: aircraft.registration,
       instructorName: sql<string>`ip.full_name`,
       studentName: sql<string>`sp.full_name`,

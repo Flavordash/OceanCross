@@ -7,6 +7,7 @@ import {
   integer,
   boolean,
   jsonb,
+  real,
 } from "drizzle-orm/pg-core";
 
 // ── Enums ──────────────────────────────────────────────
@@ -59,6 +60,23 @@ export const notificationChannelEnum = pgEnum("notification_channel", [
   "push",
 ]);
 
+export const reminderTypeEnum = pgEnum("reminder_type", [
+  "oil_change",
+  "elt",
+  "100_hour",
+  "annual",
+  "transponder",
+  "pitot_static",
+  "registration",
+  "custom",
+]);
+
+export const dispatchStatusEnum = pgEnum("dispatch_status", [
+  "dispatched",
+  "returned",
+  "cancelled",
+]);
+
 // ── Tables ─────────────────────────────────────────────
 
 export const profiles = pgTable("profiles", {
@@ -84,6 +102,8 @@ export const aircraft = pgTable("aircraft", {
   model: text("model").notNull(),
   status: aircraftStatusEnum("status").notNull().default("available"),
   totalHours: integer("total_hours").notNull().default(0),
+  hobbsHours: real("hobbs_hours").notNull().default(0),
+  tachHours: real("tach_hours").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -103,6 +123,7 @@ export const scheduleEvents = pgTable("schedule_events", {
   instructorId: uuid("instructor_id").references(() => profiles.id),
   studentId: uuid("student_id").references(() => profiles.id),
   status: eventStatusEnum("status").notNull().default("scheduled"),
+  dispatchStatus: text("dispatch_status"), // null | "dispatched" | "returned"
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -181,6 +202,64 @@ export const notifications = pgTable("notifications", {
   channel: notificationChannelEnum("channel").notNull().default("email"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   read: boolean("read").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+// ── New Tables ─────────────────────────────────────────
+
+export const aircraftReminders = pgTable("aircraft_reminders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  aircraftId: uuid("aircraft_id")
+    .notNull()
+    .references(() => aircraft.id),
+  name: text("name").notNull(),
+  type: reminderTypeEnum("type").notNull().default("custom"),
+  dueHours: real("due_hours"),
+  warningHours: real("warning_hours").default(10),
+  dueDate: timestamp("due_date", { withTimezone: true }),
+  warningDays: integer("warning_days").default(30),
+  lastCompletedAt: timestamp("last_completed_at", { withTimezone: true }),
+  lastCompletedHours: real("last_completed_hours"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const dispatchLogs = pgTable("dispatch_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventId: uuid("event_id")
+    .notNull()
+    .references(() => scheduleEvents.id),
+  aircraftId: uuid("aircraft_id")
+    .notNull()
+    .references(() => aircraft.id),
+  pilotId: uuid("pilot_id")
+    .notNull()
+    .references(() => profiles.id),
+  instructorId: uuid("instructor_id").references(() => profiles.id),
+  status: dispatchStatusEnum("status").notNull().default("dispatched"),
+  hobbsOut: real("hobbs_out").notNull(),
+  tachOut: real("tach_out").notNull(),
+  hobbsIn: real("hobbs_in"),
+  tachIn: real("tach_in"),
+  hobbsFlown: real("hobbs_flown"),
+  tachFlown: real("tach_flown"),
+  maintenanceStatus: text("maintenance_status").notNull(), // pass | review | fail
+  preflightChecks: jsonb("preflight_checks"),
+  departTime: timestamp("depart_time", { withTimezone: true }).notNull(),
+  returnTime: timestamp("return_time", { withTimezone: true }),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

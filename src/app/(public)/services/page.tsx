@@ -75,10 +75,10 @@ const services = [
     icon: BarChart3,
     title: "AI Scheduling Assistant",
     description:
-      "Natural language chat interface powered by AI. Book flights, check availability, and manage schedules by simply asking in English or Korean.",
+      "Natural language chat interface powered by AI. Book flights, check availability, and manage schedules by simply asking.",
     highlights: [
       "Natural language booking",
-      "Bilingual support (EN/KR)",
+      "24/7 availability",
       "Smart conflict resolution",
       "Schedule recommendations",
     ],

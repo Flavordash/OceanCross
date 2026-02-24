@@ -22,7 +22,7 @@ const features = [
     icon: Bot,
     title: "AI Assistant",
     description:
-      "Chat with our AI to book flights, check availability, and manage your schedule using natural language — in English or Korean.",
+      "Chat with our AI to book flights, check availability, and manage your schedule using natural language.",
   },
   {
     icon: Plane,

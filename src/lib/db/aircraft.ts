@@ -15,6 +15,8 @@ export interface CreateAircraftInput {
   model: string;
   status?: AircraftStatus;
   totalHours?: number;
+  hobbsHours?: number;
+  tachHours?: number;
 }
 
 export interface UpdateAircraftInput {
@@ -23,6 +25,8 @@ export interface UpdateAircraftInput {
   model?: string;
   status?: AircraftStatus;
   totalHours?: number;
+  hobbsHours?: number;
+  tachHours?: number;
 }
 
 export async function getAllAircraft() {
@@ -50,6 +54,8 @@ export async function createAircraft(input: CreateAircraftInput) {
       model: input.model,
       status: input.status ?? "available",
       totalHours: input.totalHours ?? 0,
+      hobbsHours: input.hobbsHours ?? 0,
+      tachHours: input.tachHours ?? 0,
     })
     .returning();
   return row;
@@ -62,6 +68,8 @@ export async function updateAircraft(id: string, input: UpdateAircraftInput) {
   if (input.model !== undefined) values.model = input.model;
   if (input.status !== undefined) values.status = input.status;
   if (input.totalHours !== undefined) values.totalHours = input.totalHours;
+  if (input.hobbsHours !== undefined) values.hobbsHours = input.hobbsHours;
+  if (input.tachHours !== undefined) values.tachHours = input.tachHours;
 
   const [row] = await db
     .update(aircraft)
@@ -98,7 +106,7 @@ export async function getAircraftSchedule(aircraftId: string) {
       )
     )
     .orderBy(scheduleEvents.startTime)
-    .limit(10);
+    .limit(20);
 }
 
 export async function getAircraftMaintenance(aircraftId: string) {

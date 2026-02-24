@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   Table,
@@ -38,25 +36,8 @@ interface Aircraft {
   model: string;
   status: string;
   totalHours: number;
-}
-
-interface ScheduleItem {
-  id: string;
-  title: string;
-  type: string;
-  startTime: string;
-  endTime: string;
-  status: string;
-}
-
-interface MaintenanceItem {
-  id: string;
-  description: string;
-  status: string;
-  bay: string | null;
-  estimatedStart: string | null;
-  estimatedEnd: string | null;
-  mechanicName: string | null;
+  hobbsHours: number;
+  tachHours: number;
 }
 
 interface AircraftForm {
@@ -65,6 +46,8 @@ interface AircraftForm {
   model: string;
   status: string;
   totalHours: number;
+  hobbsHours: number;
+  tachHours: number;
 }
 
 const EMPTY_FORM: AircraftForm = {
@@ -73,6 +56,8 @@ const EMPTY_FORM: AircraftForm = {
   model: "",
   status: "available",
   totalHours: 0,
+  hobbsHours: 0,
+  tachHours: 0,
 };
 
 const STATUS_BADGE: Record<string, string> = {
@@ -88,22 +73,16 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function AircraftPage() {
+  const router = useRouter();
   const [aircraftList, setAircraftList] = useState<Aircraft[]>([]);
   const [role, setRole] = useState("student");
   const [loading, setLoading] = useState(true);
 
-  // Create/Edit
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<AircraftForm>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  // Detail
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
-  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
-  const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
 
   const isAdmin = role === "admin";
 
@@ -133,7 +112,8 @@ export default function AircraftPage() {
     setFormOpen(true);
   }
 
-  function openEdit(ac: Aircraft) {
+  function openEdit(e: React.MouseEvent, ac: Aircraft) {
+    e.stopPropagation();
     setEditId(ac.id);
     setForm({
       registration: ac.registration,
@@ -141,6 +121,8 @@ export default function AircraftPage() {
       model: ac.model,
       status: ac.status,
       totalHours: ac.totalHours,
+      hobbsHours: ac.hobbsHours ?? 0,
+      tachHours: ac.tachHours ?? 0,
     });
     setFormError(null);
     setFormOpen(true);
@@ -175,22 +157,10 @@ export default function AircraftPage() {
     fetchAircraft();
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
     await fetch(`/api/aircraft?id=${id}`, { method: "DELETE" });
     fetchAircraft();
-  }
-
-  async function openDetail(ac: Aircraft) {
-    setSelectedAircraft(ac);
-    setDetailOpen(true);
-
-    const [schedRes, maintRes] = await Promise.all([
-      fetch(`/api/aircraft?id=${ac.id}&detail=schedule`),
-      fetch(`/api/aircraft?id=${ac.id}&detail=maintenance`),
-    ]);
-
-    if (schedRes.ok) setSchedule(await schedRes.json());
-    if (maintRes.ok) setMaintenance(await maintRes.json());
   }
 
   if (loading) {
@@ -226,13 +196,15 @@ export default function AircraftPage() {
                 <TableHead>Model</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Hours</TableHead>
+                <TableHead className="text-right">Hobbs</TableHead>
+                <TableHead className="text-right">Tach</TableHead>
                 {isAdmin && <TableHead className="w-24" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {aircraftList.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 6 : 5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={isAdmin ? 8 : 7} className="text-center text-muted-foreground py-8">
                     No aircraft registered
                   </TableCell>
                 </TableRow>
@@ -241,7 +213,7 @@ export default function AircraftPage() {
                   <TableRow
                     key={ac.id}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => openDetail(ac)}
+                    onClick={() => router.push(`/dashboard/aircraft/${ac.id}`)}
                   >
                     <TableCell className="font-medium">{ac.registration}</TableCell>
                     <TableCell>{ac.type}</TableCell>
@@ -252,13 +224,15 @@ export default function AircraftPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">{ac.totalHours.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{(ac.hobbsHours ?? 0).toFixed(1)}</TableCell>
+                    <TableCell className="text-right">{(ac.tachHours ?? 0).toFixed(1)}</TableCell>
                     {isAdmin && (
                       <TableCell>
-                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(ac)}>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => openEdit(e, ac)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(ac.id)}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => handleDelete(e, ac.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -316,6 +290,16 @@ export default function AircraftPage() {
                 <Input id="hours" type="number" value={form.totalHours} onChange={(e) => setForm({ ...form, totalHours: parseInt(e.target.value) || 0 })} />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="hobbs">Hobbs Hours</Label>
+                <Input id="hobbs" type="number" step="0.1" value={form.hobbsHours} onChange={(e) => setForm({ ...form, hobbsHours: parseFloat(e.target.value) || 0 })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tach">Tach Hours</Label>
+                <Input id="tach" type="number" step="0.1" value={form.tachHours} onChange={(e) => setForm({ ...form, tachHours: parseFloat(e.target.value) || 0 })} />
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
@@ -323,74 +307,6 @@ export default function AircraftPage() {
               {saving ? "Saving..." : editId ? "Update" : "Add"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Detail Dialog */}
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
-          {selectedAircraft && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selectedAircraft.registration}</DialogTitle>
-                <DialogDescription>
-                  {selectedAircraft.type} — {selectedAircraft.model}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-1 text-sm">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={STATUS_BADGE[selectedAircraft.status] ?? ""}>
-                    {STATUS_LABELS[selectedAircraft.status]}
-                  </Badge>
-                  <span className="text-muted-foreground">{selectedAircraft.totalHours.toLocaleString()} hours</span>
-                </div>
-              </div>
-
-              {/* Upcoming Schedule */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold">Upcoming Schedule</h3>
-                {schedule.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No upcoming events</p>
-                ) : (
-                  <div className="space-y-2">
-                    {schedule.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between rounded border p-2 text-sm">
-                        <div>
-                          <p className="font-medium">{s.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(s.startTime).toLocaleDateString()} {new Date(s.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                          </p>
-                        </div>
-                        <Badge variant="secondary" className="text-xs">{s.type.replace("_", " ")}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Maintenance History */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold">Maintenance History</h3>
-                {maintenance.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No maintenance records</p>
-                ) : (
-                  <div className="space-y-2">
-                    {maintenance.map((m) => (
-                      <div key={m.id} className="rounded border p-2 text-sm">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium">{m.description}</p>
-                          <Badge variant="outline" className="text-xs">{m.status.replace("_", " ")}</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {m.mechanicName ?? "Unassigned"}{m.bay ? ` — Bay ${m.bay}` : ""}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
         </DialogContent>
       </Dialog>
     </div>
