@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { scheduleEvents, profiles, aircraft } from "@/db/schema";
-import { and, eq, ne, or, lt, gt, sql } from "drizzle-orm";
+import { and, eq, ne, or, lt, gt, sql, inArray } from "drizzle-orm";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -210,7 +210,7 @@ export async function checkConflicts(
         and(...baseConditions, eq(scheduleEvents.studentId, opts.studentId))
       )
       .limit(1);
-    if (hit) conflicts.push("Student is already booked for this time slot");
+    if (hit) conflicts.push("Client is already booked for this time slot");
   }
 
   return { hasConflict: conflicts.length > 0, conflicts };
@@ -225,11 +225,11 @@ export async function getInstructors() {
     .where(eq(profiles.role, "instructor"));
 }
 
-export async function getStudents() {
+export async function getClients() {
   return db
     .select({ id: profiles.id, fullName: profiles.fullName })
     .from(profiles)
-    .where(eq(profiles.role, "student"));
+    .where(inArray(profiles.role, ["client", "student", "customer"]));
 }
 
 export async function getAvailableAircraft() {

@@ -7,7 +7,7 @@ import {
   deleteEvent,
   checkConflicts,
   getInstructors,
-  getStudents,
+  getClients,
   getAvailableAircraft,
 } from "@/lib/db/schedule";
 
@@ -20,12 +20,12 @@ export async function GET(request: NextRequest) {
 
   // Lookup mode: return instructors, students, aircraft for form selects
   if (searchParams.get("lookup") === "true") {
-    const [instructors, students, aircraftList] = await Promise.all([
+    const [instructors, clients, aircraftList] = await Promise.all([
       getInstructors(),
-      getStudents(),
+      getClients(),
       getAvailableAircraft(),
     ]);
-    return NextResponse.json({ instructors, students, aircraft: aircraftList });
+    return NextResponse.json({ instructors, clients, aircraft: aircraftList });
   }
 
   const events = await getEvents({

@@ -10,6 +10,7 @@ import {
   Wrench,
   MessageSquare,
   Settings,
+  Users, // Added Users icon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +18,8 @@ const ALL_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/schedule", label: "Schedule", icon: CalendarDays },
   { href: "/dashboard/aircraft", label: "Aircraft", icon: Plane },
-  { href: "/dashboard/students", label: "Students", icon: GraduationCap },
+  { href: "/dashboard/clients", label: "Clients", icon: Users },
+  { href: "/dashboard/instructors", label: "Instructors", icon: GraduationCap },
   { href: "/dashboard/mechanics", label: "Mechanics", icon: Wrench },
   { href: "/dashboard/chat", label: "AI Chat", icon: MessageSquare },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
@@ -25,14 +27,14 @@ const ALL_ITEMS = [
 
 const ROLE_ACCESS: Record<string, string[]> = {
   admin: ALL_ITEMS.map((i) => i.href),
-  instructor: [
-    "/dashboard",
-    "/dashboard/schedule",
-    "/dashboard/students",
-    "/dashboard/chat",
-    "/dashboard/settings",
-  ],
-  student: ["/dashboard/schedule", "/dashboard/chat", "/dashboard/settings"],
+      instructor: [
+        "/dashboard",
+        "/dashboard/schedule",
+        "/dashboard/clients",
+        "/dashboard/instructors",
+        "/dashboard/chat",
+        "/dashboard/settings",
+      ],  student: ["/dashboard/schedule", "/dashboard/chat", "/dashboard/settings"],
   mechanic: [
     "/dashboard",
     "/dashboard/schedule",

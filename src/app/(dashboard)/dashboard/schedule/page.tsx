@@ -43,7 +43,7 @@ interface ScheduleEvent {
 
 interface LookupData {
   instructors: { id: string; fullName: string }[];
-  students: { id: string; fullName: string }[];
+  clients: { id: string; fullName: string }[];
   aircraft: { id: string; registration: string; model: string }[];
 }
 
@@ -457,11 +457,11 @@ export default function SchedulePage() {
               }))}
             />
             <SelectField
-              id="student"
-              label="Student"
+              id="client"
+              label="Client"
               value={data.studentId}
               onChange={(v) => setData({ ...data, studentId: v })}
-              options={lookup.students.map((s) => ({
+              options={lookup.clients.map((s) => ({
                 value: s.id,
                 label: s.fullName,
               }))}

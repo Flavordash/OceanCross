@@ -284,10 +284,10 @@ export default function DashboardPage() {
               <Button
                 variant="outline"
                 className="h-auto flex-col gap-2 py-4"
-                onClick={() => router.push("/dashboard/students")}
+                onClick={() => router.push("/dashboard/clients")}
               >
                 <CalendarDays className="h-5 w-5 text-[#1A6FB5]" />
-                <span className="text-xs">Students</span>
+                <span className="text-xs">Clients</span>
               </Button>
             </CardContent>
           </Card>

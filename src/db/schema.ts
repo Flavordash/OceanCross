@@ -18,6 +18,7 @@ export const userRoleEnum = pgEnum("user_role", [
   "student",
   "mechanic",
   "customer",
+  "client",
 ]);
 
 export const aircraftStatusEnum = pgEnum("aircraft_status", [
@@ -267,4 +268,267 @@ export const dispatchLogs = pgTable("dispatch_logs", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
+});
+
+export const clientTags = pgTable("client_tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  color: text("color").notNull().default("#6B7280"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const profileTags = pgTable("profile_tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id")
+    .notNull()
+    .references(() => profiles.id),
+  tagId: uuid("tag_id")
+    .notNull()
+    .references(() => clientTags.id, { onDelete: "cascade" }),
+});
+
+export const clientDetails = pgTable("client_details", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id")
+    .notNull()
+    .unique()
+    .references(() => profiles.id),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  country: text("country"),
+  gender: text("gender"),
+  dateOfBirth: timestamp("date_of_birth", { withTimezone: true }),
+  driversLicense: text("drivers_license"),
+  passportNumber: text("passport_number"),
+  passportExpiry: timestamp("passport_expiry", { withTimezone: true }),
+  emergencyContactName: text("emergency_contact_name"),
+  emergencyContactPhone: text("emergency_contact_phone"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const ledgerEntryTypeEnum = pgEnum("ledger_entry_type", [
+  "charge",
+  "payment",
+  "adjustment",
+]);
+
+// ── Pilot Enums ───────────────────────────────────────
+
+export const trainingStatusEnum = pgEnum("training_status", [
+  "enrolled",
+  "not_enrolled",
+  "completed",
+  "withdrawn",
+]);
+
+export const courseStatusEnum = pgEnum("course_status", [
+  "enrolled",
+  "in_progress",
+  "completed",
+  "dropped",
+]);
+
+export const medicalClassEnum = pgEnum("medical_class", [
+  "1st_class",
+  "2nd_class",
+  "3rd_class",
+  "basicmed",
+]);
+
+export const pilotCertificateEnum = pgEnum("pilot_certificate", [
+  "student_pilot",
+  "sport_pilot",
+  "recreational_pilot",
+  "private_pilot",
+  "commercial_pilot",
+  "atp",
+]);
+
+export const pilotCertificateTypeEnum = pgEnum("pilot_certificate_type", [
+  "remote_pilot",
+  "flight_instructor",
+  "ground_instructor",
+  "flight_engineer",
+  "flight_navigator",
+]);
+
+export const tsaEvidenceEnum = pgEnum("tsa_evidence", [
+  "none",
+  "passport",
+  "birth_certificate",
+  "naturalization_certificate",
+  "permanent_resident_card",
+]);
+
+export const clientLedger = pgTable("client_ledger", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id")
+    .notNull()
+    .references(() => profiles.id),
+  date: timestamp("date", { withTimezone: true }).notNull().defaultNow(),
+  description: text("description").notNull(),
+  type: ledgerEntryTypeEnum("type").notNull(),
+  quantity: real("quantity"),
+  amount: real("amount").notNull().default(0),
+  paymentMethod: text("payment_method"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ── Pilot Tables ──────────────────────────────────────
+
+export const pilotInfo = pgTable("pilot_info", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id")
+    .notNull()
+    .unique()
+    .references(() => profiles.id),
+
+  // Training
+  trainingStatus: trainingStatusEnum("training_status").default("not_enrolled"),
+
+  // Preferred Location
+  preferredLocation: text("preferred_location"),
+
+  // Currency
+  lastFlightReview: timestamp("last_flight_review", { withTimezone: true }),
+  rentersInsuranceExpiry: timestamp("renters_insurance_expiry", { withTimezone: true }),
+  medicalClass: medicalClassEnum("medical_class"),
+  medicalExpires: timestamp("medical_expires", { withTimezone: true }),
+
+  // Certificate Information
+  ftn: text("ftn"),
+  soloDate: timestamp("solo_date", { withTimezone: true }),
+  certificate: pilotCertificateEnum("certificate"),
+  certificateType: pilotCertificateTypeEnum("certificate_type"),
+  issuedBy: text("issued_by"),
+  dateIssued: timestamp("date_issued", { withTimezone: true }),
+  certificateNumber: text("certificate_number"),
+  cfiExpiration: timestamp("cfi_expiration", { withTimezone: true }),
+
+  // Categories, Ratings & Endorsements (JSONB arrays)
+  craftCategories: jsonb("craft_categories").$type<string[]>().default([]),
+  endorsements: jsonb("endorsements").$type<string[]>().default([]),
+  classRatings: jsonb("class_ratings").$type<string[]>().default([]),
+  otherRatings: jsonb("other_ratings").$type<string[]>().default([]),
+
+  // TSA Security Clearance
+  tsaEvidenceShown: tsaEvidenceEnum("tsa_evidence_shown").default("none"),
+  tsaEndorsementsVerified: boolean("tsa_endorsements_verified").default(false),
+  tsaNotes: text("tsa_notes"),
+
+  // Timestamps
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const pilotCourses = pgTable("pilot_courses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id")
+    .notNull()
+    .references(() => profiles.id),
+  courseName: text("course_name").notNull(),
+  status: courseStatusEnum("status").notNull().default("enrolled"),
+  enrolledDate: timestamp("enrolled_date", { withTimezone: true }).defaultNow(),
+  completedDate: timestamp("completed_date", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pilotAircraftCheckouts = pgTable("pilot_aircraft_checkouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id")
+    .notNull()
+    .references(() => profiles.id),
+  aircraftId: uuid("aircraft_id")
+    .notNull()
+    .references(() => aircraft.id),
+  checkoutDate: timestamp("checkout_date", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  checkedOutBy: uuid("checked_out_by")
+    .notNull()
+    .references(() => profiles.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pilotPreferredInstructors = pgTable("pilot_preferred_instructors", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id")
+    .notNull()
+    .references(() => profiles.id),
+  instructorId: uuid("instructor_id")
+    .notNull()
+    .references(() => profiles.id),
+  addedDate: timestamp("added_date", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  addedBy: text("added_by"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ── Instructor Tables ─────────────────────────────────
+
+export const instructorSpecialties = pgTable("instructor_specialties", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const instructorSettings = pgTable("instructor_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id")
+    .notNull()
+    .unique()
+    .references(() => profiles.id),
+  cfiNumber: text("cfi_number"),
+  cfiExpiration: timestamp("cfi_expiration", { withTimezone: true }),
+  isAuthorized: boolean("is_authorized").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const instructorSpecialtyAssignments = pgTable("instructor_specialty_assignments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instructorId: uuid("instructor_id")
+    .notNull()
+    .references(() => profiles.id),
+  specialtyId: uuid("specialty_id")
+    .notNull()
+    .references(() => instructorSpecialties.id, { onDelete: "cascade" }),
+  hourlyRate: real("hourly_rate").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });

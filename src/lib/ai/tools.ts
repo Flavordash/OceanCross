@@ -7,7 +7,7 @@ import {
   checkConflicts,
   getAvailableAircraft,
   getInstructors,
-  getStudents,
+  getClients,
 } from "@/lib/db/schedule";
 import { getAllAircraft } from "@/lib/db/aircraft";
 import { getAircraftReminders } from "@/lib/db/reminders";
@@ -31,7 +31,7 @@ const createBookingParams = z.object({
   endTime: z.string().describe("End time in HH:MM format (24hr)"),
   aircraftId: z.string().optional().describe("Aircraft UUID"),
   instructorId: z.string().optional().describe("Instructor UUID"),
-  studentId: z.string().optional().describe("Student UUID"),
+  studentId: z.string().optional().describe("Client UUID"),
 });
 
 const getMyScheduleParams = z.object({
@@ -70,10 +70,10 @@ export function createTools(userId: string, userRole: string) {
           ? events.filter((e) => e.type === params.eventType)
           : events;
 
-        const [aircraftList, instructors, students] = await Promise.all([
+        const [aircraftList, instructors, clients] = await Promise.all([
           getAvailableAircraft(),
           getInstructors(),
-          getStudents(),
+          getClients(),
         ]);
 
         return {
@@ -84,7 +84,7 @@ export function createTools(userId: string, userRole: string) {
             end: String(e.endTime),
             aircraft: e.aircraftReg,
             instructor: e.instructorName,
-            student: e.studentName,
+            client: e.studentName,
           })),
           availableAircraft: aircraftList.map((a) => ({
             id: a.id,
@@ -95,7 +95,7 @@ export function createTools(userId: string, userRole: string) {
             id: i.id,
             name: i.fullName,
           })),
-          availableStudents: students.map((s) => ({
+          availableClients: clients.map((s) => ({
             id: s.id,
             name: s.fullName,
           })),
@@ -182,7 +182,7 @@ export function createTools(userId: string, userRole: string) {
             status: e.status,
             aircraft: e.aircraftReg,
             instructor: e.instructorName,
-            student: e.studentName,
+            client: e.studentName,
           })),
           total: events.length,
         };

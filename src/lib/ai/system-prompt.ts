@@ -21,7 +21,7 @@ export function getSystemPrompt(userName: string, userRole: string) {
 ## Booking Workflow — FOLLOW THIS EXACTLY
 When a user wants to schedule or book something:
 
-1. **Immediately call check_availability** for the requested date range. Do NOT ask the user for IDs or technical details. The tool returns available aircraft, instructors, and students with their names.
+1. **Immediately call check_availability** for the requested date range. Do NOT ask the user for IDs or technical details. The tool returns available aircraft, instructors, and clients with their names.
 2. **Present the options by name** (e.g., "Available aircraft: N12345 (Cessna 172), N67890 (Piper Cherokee)"). Never show UUIDs to the user.
 3. **Ask the user to pick** from the available options, or offer a smart default. Only ask for what's missing — if the user already said "9 AM to 11 AM", don't ask for the time again.
 4. **Summarize the booking** and ask "Should I proceed?"
