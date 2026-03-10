@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -15,19 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import {
+  AircraftFormDialog,
+  AircraftFormData,
+  EMPTY_AIRCRAFT_FORM,
+} from "@/components/aircraft/aircraft-form-dialog";
 
 interface Aircraft {
   id: string;
@@ -38,27 +30,20 @@ interface Aircraft {
   totalHours: number;
   hobbsHours: number;
   tachHours: number;
+  year: number | null;
+  emptyWeight: number | null;
+  maxTakeoffWeight: number | null;
+  usefulLoad: number | null;
+  maxPassengers: number | null;
+  luggageCapacityLbs: number | null;
+  fuelCapacityGallons: number | null;
+  fuelUsableGallons: number | null;
+  fuelWeightLbs: number | null;
+  fuelPerWingGallons: number | null;
+  oilCapacityQuarts: string | null;
+  maxEnduranceHours: number | null;
+  notes: string | null;
 }
-
-interface AircraftForm {
-  registration: string;
-  type: string;
-  model: string;
-  status: string;
-  totalHours: number;
-  hobbsHours: number;
-  tachHours: number;
-}
-
-const EMPTY_FORM: AircraftForm = {
-  registration: "",
-  type: "",
-  model: "",
-  status: "available",
-  totalHours: 0,
-  hobbsHours: 0,
-  tachHours: 0,
-};
 
 const STATUS_BADGE: Record<string, string> = {
   available: "bg-green-100 text-green-700",
@@ -80,7 +65,7 @@ export default function AircraftPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState<AircraftForm>(EMPTY_FORM);
+  const [form, setForm] = useState<AircraftFormData>(EMPTY_AIRCRAFT_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -107,7 +92,7 @@ export default function AircraftPage() {
 
   function openCreate() {
     setEditId(null);
-    setForm(EMPTY_FORM);
+    setForm(EMPTY_AIRCRAFT_FORM);
     setFormError(null);
     setFormOpen(true);
   }
@@ -123,6 +108,19 @@ export default function AircraftPage() {
       totalHours: ac.totalHours,
       hobbsHours: ac.hobbsHours ?? 0,
       tachHours: ac.tachHours ?? 0,
+      year: ac.year ?? null,
+      emptyWeight: ac.emptyWeight ?? null,
+      maxTakeoffWeight: ac.maxTakeoffWeight ?? null,
+      usefulLoad: ac.usefulLoad ?? null,
+      maxPassengers: ac.maxPassengers ?? null,
+      luggageCapacityLbs: ac.luggageCapacityLbs ?? null,
+      fuelCapacityGallons: ac.fuelCapacityGallons ?? null,
+      fuelUsableGallons: ac.fuelUsableGallons ?? null,
+      fuelWeightLbs: ac.fuelWeightLbs ?? null,
+      fuelPerWingGallons: ac.fuelPerWingGallons ?? null,
+      oilCapacityQuarts: ac.oilCapacityQuarts ?? "",
+      maxEnduranceHours: ac.maxEnduranceHours ?? null,
+      notes: ac.notes ?? "",
     });
     setFormError(null);
     setFormOpen(true);
@@ -246,69 +244,16 @@ export default function AircraftPage() {
         </CardContent>
       </Card>
 
-      {/* Create / Edit Dialog */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editId ? "Edit Aircraft" : "Add Aircraft"}</DialogTitle>
-            <DialogDescription>
-              {editId ? "Update aircraft details" : "Register a new aircraft"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {formError && <p className="text-sm text-destructive bg-destructive/10 rounded-md p-2">{formError}</p>}
-            <div className="space-y-1.5">
-              <Label htmlFor="reg">Registration (N Number)</Label>
-              <Input id="reg" value={form.registration} onChange={(e) => setForm({ ...form, registration: e.target.value })} placeholder="N12345" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="type">Type</Label>
-                <Input id="type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} placeholder="Single Engine" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="model">Model</Label>
-                <Input id="model" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="Cessna 172" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="status">Status</Label>
-                <select
-                  id="status"
-                  value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {Object.entries(STATUS_LABELS).map(([v, l]) => (
-                    <option key={v} value={v}>{l}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="hours">Total Hours</Label>
-                <Input id="hours" type="number" value={form.totalHours} onChange={(e) => setForm({ ...form, totalHours: parseInt(e.target.value) || 0 })} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="hobbs">Hobbs Hours</Label>
-                <Input id="hobbs" type="number" step="0.1" value={form.hobbsHours} onChange={(e) => setForm({ ...form, hobbsHours: parseFloat(e.target.value) || 0 })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tach">Tach Hours</Label>
-                <Input id="tach" type="number" step="0.1" value={form.tachHours} onChange={(e) => setForm({ ...form, tachHours: parseFloat(e.target.value) || 0 })} />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} className="bg-[#1A6FB5] hover:bg-[#155d99]">
-              {saving ? "Saving..." : editId ? "Update" : "Add"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AircraftFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        editId={editId}
+        form={form}
+        setForm={setForm}
+        onSave={handleSave}
+        saving={saving}
+        error={formError}
+      />
     </div>
   );
 }

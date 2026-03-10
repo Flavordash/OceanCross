@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -17,10 +18,15 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Search, X, Plus } from "lucide-react";
 
 interface Mechanic {
   id: string;
@@ -30,46 +36,50 @@ interface Mechanic {
   activeJobs: number;
 }
 
-interface JobItem {
-  id: string;
-  description: string;
-  status: string;
-  bay: string | null;
-  estimatedStart: string | null;
-  estimatedEnd: string | null;
-  aircraftReg: string | null;
-  aircraftModel: string | null;
-}
-
-const JOB_STATUS_BADGE: Record<string, string> = {
-  pending_parts: "bg-yellow-100 text-yellow-700",
-  scheduled: "bg-blue-100 text-blue-700",
-  in_progress: "bg-orange-100 text-orange-700",
-  completed: "bg-green-100 text-green-700",
-};
-
 export default function MechanicsPage() {
+  const router = useRouter();
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [selected, setSelected] = useState<Mechanic | null>(null);
-  const [jobs, setJobs] = useState<JobItem[]>([]);
+  // Add Mechanic dialog
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState({ fullName: "", email: "", phone: "" });
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
-    async function load() {
-      const res = await fetch("/api/mechanics");
-      if (res.ok) setMechanics(await res.json());
-      setLoading(false);
-    }
-    load();
+    loadMechanics();
   }, []);
 
-  async function openDetail(mechanic: Mechanic) {
-    setSelected(mechanic);
-    setDetailOpen(true);
-    const res = await fetch(`/api/mechanics?id=${mechanic.id}&detail=jobs`);
-    if (res.ok) setJobs(await res.json());
+  async function loadMechanics() {
+    const res = await fetch("/api/mechanics");
+    if (res.ok) setMechanics(await res.json());
+    setLoading(false);
+  }
+
+  async function handleAdd() {
+    if (!form.fullName || !form.email) return;
+    setSaving(true);
+    setFormError("");
+
+    const res = await fetch("/api/mechanics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setFormError(data.error ?? "Failed to add mechanic");
+      setSaving(false);
+      return;
+    }
+
+    setSaving(false);
+    setDialogOpen(false);
+    setForm({ fullName: "", email: "", phone: "" });
+    loadMechanics();
   }
 
   if (loading) {
@@ -82,9 +92,41 @@ export default function MechanicsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-[#0F1B2D]">Mechanics</h1>
-        <p className="text-sm text-muted-foreground">Maintenance team and work assignments</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[#0F1B2D]">Mechanics</h1>
+          <p className="text-sm text-muted-foreground">Maintenance team and work assignments</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, email..."
+              className="pl-9 pr-9"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <Button
+            onClick={() => {
+              setForm({ fullName: "", email: "", phone: "" });
+              setFormError("");
+              setDialogOpen(true);
+            }}
+            className="bg-[#1A6FB5] hover:bg-[#155d99]"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Mechanic
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -99,18 +141,28 @@ export default function MechanicsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mechanics.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                    No mechanics registered
-                  </TableCell>
-                </TableRow>
-              ) : (
-                mechanics.map((m) => (
+              {(() => {
+                const filtered = mechanics.filter((m) => {
+                  if (!search) return true;
+                  const q = search.toLowerCase();
+                  return (
+                    m.fullName.toLowerCase().includes(q) ||
+                    m.email.toLowerCase().includes(q) ||
+                    (m.phone?.toLowerCase().includes(q) ?? false)
+                  );
+                });
+                if (filtered.length === 0) return (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      {search ? "No results found" : "No mechanics registered"}
+                    </TableCell>
+                  </TableRow>
+                );
+                return filtered.map((m) => (
                   <TableRow
                     key={m.id}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => openDetail(m)}
+                    onClick={() => router.push(`/dashboard/mechanics/${m.id}`)}
                   >
                     <TableCell className="font-medium">{m.fullName}</TableCell>
                     <TableCell className="text-muted-foreground">{m.email}</TableCell>
@@ -125,65 +177,61 @@ export default function MechanicsPage() {
                       )}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
+                ));
+              })()}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Mechanic Detail Dialog */}
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
-          {selected && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selected.fullName}</DialogTitle>
-                <DialogDescription>
-                  {selected.email}{selected.phone ? ` — ${selected.phone}` : ""}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="flex items-center gap-4 text-sm">
-                <div className="rounded-lg bg-orange-50 px-3 py-2 text-center">
-                  <p className="text-lg font-bold text-orange-600">{selected.activeJobs}</p>
-                  <p className="text-xs text-muted-foreground">Active Jobs</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold">Assigned Maintenance Jobs</h3>
-                {jobs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No jobs assigned</p>
-                ) : (
-                  <div className="space-y-2">
-                    {jobs.map((j) => (
-                      <div key={j.id} className="rounded border p-3 text-sm space-y-1">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium">{j.description}</p>
-                          <Badge variant="outline" className={JOB_STATUS_BADGE[j.status] ?? ""}>
-                            {j.status.replace("_", " ")}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          {j.aircraftReg && (
-                            <span>{j.aircraftReg} ({j.aircraftModel})</span>
-                          )}
-                          {j.bay && <span>Bay {j.bay}</span>}
-                          {j.estimatedStart && (
-                            <span>
-                              {new Date(j.estimatedStart).toLocaleDateString()}
-                              {j.estimatedEnd ? ` – ${new Date(j.estimatedEnd).toLocaleDateString()}` : ""}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+      {/* Add Mechanic Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Mechanic</DialogTitle>
+            <DialogDescription>Add a new mechanic to the maintenance team</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Full Name *</Label>
+              <Input
+                value={form.fullName}
+                onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                placeholder="John Smith"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email *</Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="john@example.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="(555) 123-4567"
+              />
+            </div>
+            {formError && (
+              <p className="text-sm text-red-600">{formError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleAdd}
+              disabled={saving || !form.fullName || !form.email}
+              className="bg-[#1A6FB5] hover:bg-[#155d99]"
+            >
+              {saving ? "Adding..." : "Add Mechanic"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

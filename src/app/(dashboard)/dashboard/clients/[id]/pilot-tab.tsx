@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload, FileText, Loader2 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -72,6 +73,14 @@ interface PreferredInstructor {
   instructorName: string | null;
   addedDate: string;
   addedBy: string | null;
+}
+
+interface PilotDocument {
+  id: string;
+  type: string;
+  fileUrl: string;
+  uploadedAt: string;
+  expiresAt: string | null;
 }
 
 interface OptionData {
@@ -125,6 +134,13 @@ const TSA_EVIDENCE_OPTIONS = [
   { value: "birth_certificate", label: "Birth Certificate" },
   { value: "naturalization_certificate", label: "Naturalization Certificate" },
   { value: "permanent_resident_card", label: "Permanent Resident Card" },
+];
+
+const DOCUMENT_TYPES = [
+  { value: "medical_certificate", label: "Medical Certificate" },
+  { value: "renters_insurance", label: "Renter's Insurance" },
+  { value: "pilot_certificate", label: "Pilot Certificate" },
+  { value: "other", label: "Other" },
 ];
 
 const CRAFT_CATEGORIES = ["Airplane", "Rotorcraft", "Glider", "Lighter-Than-Air", "Powered-Lift", "Weight-Shift-Control"];
@@ -188,24 +204,35 @@ export default function PilotTab({ clientId }: { clientId: string }) {
   const [instructorDialogOpen, setInstructorDialogOpen] = useState(false);
   const [instructorForm, setInstructorForm] = useState({ instructorId: "" });
 
+  // Documents
+  const [pilotDocs, setPilotDocs] = useState<PilotDocument[]>([]);
+  const [docDialogOpen, setDocDialogOpen] = useState(false);
+  const [docType, setDocType] = useState("medical_certificate");
+  const [docExpiry, setDocExpiry] = useState("");
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docUploading, setDocUploading] = useState(false);
+  const [docDragOver, setDocDragOver] = useState(false);
+
   useEffect(() => {
     loadAll();
   }, [clientId]);
 
   async function loadAll() {
     setLoading(true);
-    const [infoRes, coursesRes, checkoutsRes, instructorsRes, optionsRes] = await Promise.all([
+    const [infoRes, coursesRes, checkoutsRes, instructorsRes, optionsRes, docsRes] = await Promise.all([
       fetch(`/api/clients/pilot?profileId=${clientId}`),
       fetch(`/api/clients/pilot/courses?profileId=${clientId}`),
       fetch(`/api/clients/pilot/checkouts?profileId=${clientId}`),
       fetch(`/api/clients/pilot/instructors?profileId=${clientId}`),
       fetch("/api/clients/pilot/options"),
+      fetch(`/api/documents?profileId=${clientId}`),
     ]);
 
     if (optionsRes.ok) setOptions(await optionsRes.json());
     if (coursesRes.ok) setCourses(await coursesRes.json());
     if (checkoutsRes.ok) setCheckouts(await checkoutsRes.json());
     if (instructorsRes.ok) setPreferredInstructors(await instructorsRes.json());
+    if (docsRes.ok) setPilotDocs(await docsRes.json());
 
     if (infoRes.ok) {
       const data = await infoRes.json();
@@ -305,6 +332,132 @@ export default function PilotTab({ clientId }: { clientId: string }) {
   async function handleDeleteInstructor(id: string) {
     await fetch(`/api/clients/pilot/instructors?id=${id}`, { method: "DELETE" });
     setPreferredInstructors((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  // Document handlers
+  const handleDocFile = useCallback((f: File) => {
+    setDocFile(f);
+  }, []);
+
+  const handleDocDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDocDragOver(false);
+      const f = e.dataTransfer.files[0];
+      if (f) handleDocFile(f);
+    },
+    [handleDocFile]
+  );
+
+  async function handleUploadDocument() {
+    if (!docFile) return;
+    setDocUploading(true);
+
+    try {
+      // Upload file and extract data
+      const formData = new FormData();
+      formData.append("file", docFile);
+      formData.append("type", "credential");
+
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      let extracted: Record<string, unknown> = {};
+      let expiryDate = docExpiry || null;
+
+      if (uploadRes.ok) {
+        const data = await uploadRes.json();
+        extracted = data.extracted ?? {};
+        // Auto-fill expiry from extraction if not manually set
+        if (!expiryDate && extracted.expiry_date) {
+          expiryDate = extracted.expiry_date as string;
+          setDocExpiry(expiryDate);
+        }
+      }
+
+      // Create document record
+      // Use the file name as a placeholder URL (in production, upload to storage first)
+      const docRes = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profileId: clientId,
+          type: docType,
+          fileUrl: docFile.name,
+          expiresAt: expiryDate || null,
+          extractedData: extracted,
+        }),
+      });
+
+      if (docRes.ok) {
+        // Auto-update pilot_info dates based on document type
+        if (docType === "medical_certificate" && expiryDate) {
+          await fetch("/api/clients/pilot", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profileId: clientId, medicalExpires: expiryDate }),
+          });
+        } else if (docType === "renters_insurance" && expiryDate) {
+          await fetch("/api/clients/pilot", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profileId: clientId, rentersInsuranceExpiry: expiryDate }),
+          });
+        }
+
+        // Refresh docs and info
+        const [docsRefresh, infoRefresh] = await Promise.all([
+          fetch(`/api/documents?profileId=${clientId}`),
+          fetch(`/api/clients/pilot?profileId=${clientId}`),
+        ]);
+        if (docsRefresh.ok) setPilotDocs(await docsRefresh.json());
+        if (infoRefresh.ok) {
+          const data = await infoRefresh.json();
+          if (data) {
+            const parsed: PilotInfoData = {
+              trainingStatus: data.trainingStatus ?? "not_enrolled",
+              preferredLocation: data.preferredLocation ?? "",
+              lastFlightReview: dateStr(data.lastFlightReview),
+              rentersInsuranceExpiry: dateStr(data.rentersInsuranceExpiry),
+              medicalClass: data.medicalClass ?? null,
+              medicalExpires: dateStr(data.medicalExpires),
+              ftn: data.ftn ?? "",
+              soloDate: dateStr(data.soloDate),
+              certificate: data.certificate ?? null,
+              certificateType: data.certificateType ?? null,
+              issuedBy: data.issuedBy ?? "",
+              dateIssued: dateStr(data.dateIssued),
+              certificateNumber: data.certificateNumber ?? "",
+              cfiExpiration: dateStr(data.cfiExpiration),
+              craftCategories: data.craftCategories ?? [],
+              endorsements: data.endorsements ?? [],
+              classRatings: data.classRatings ?? [],
+              otherRatings: data.otherRatings ?? [],
+              tsaEvidenceShown: data.tsaEvidenceShown ?? "none",
+              tsaEndorsementsVerified: data.tsaEndorsementsVerified ?? false,
+              tsaNotes: data.tsaNotes ?? "",
+            };
+            setInfo(parsed);
+            if (!editing) setForm(parsed);
+          }
+        }
+
+        setDocDialogOpen(false);
+        setDocFile(null);
+        setDocExpiry("");
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setDocUploading(false);
+    }
+  }
+
+  async function handleDeleteDocument(id: string) {
+    await fetch(`/api/documents?id=${id}`, { method: "DELETE" });
+    setPilotDocs((prev) => prev.filter((d) => d.id !== id));
   }
 
   const d = editing ? form : info;
@@ -671,6 +824,154 @@ export default function PilotTab({ clientId }: { clientId: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── 9. Documents ── */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm">Documents</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setDocFile(null);
+              setDocExpiry("");
+              setDocType("medical_certificate");
+              setDocDialogOpen(true);
+            }}
+          >
+            <Upload className="h-3.5 w-3.5 mr-1" /> Upload Document
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {pilotDocs.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">No documents uploaded.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>File</TableHead>
+                  <TableHead>Uploaded</TableHead>
+                  <TableHead>Expires</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pilotDocs.map((doc) => {
+                  const typeLabel = DOCUMENT_TYPES.find((t) => t.value === doc.type)?.label ?? doc.type;
+                  const isExpired = doc.expiresAt && new Date(doc.expiresAt) < new Date();
+                  const isExpiringSoon = doc.expiresAt && !isExpired &&
+                    new Date(doc.expiresAt) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                  return (
+                    <TableRow key={doc.id}>
+                      <TableCell>
+                        <Badge variant="outline" className={
+                          doc.type === "medical_certificate" ? "bg-blue-100 text-blue-700" :
+                          doc.type === "renters_insurance" ? "bg-green-100 text-green-700" :
+                          doc.type === "pilot_certificate" ? "bg-purple-100 text-purple-700" :
+                          ""
+                        }>
+                          {typeLabel}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{doc.fileUrl}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(doc.uploadedAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {doc.expiresAt ? (
+                          <span className={
+                            isExpired ? "text-red-600 font-medium" :
+                            isExpiringSoon ? "text-amber-600 font-medium" :
+                            "text-muted-foreground"
+                          }>
+                            {new Date(doc.expiresAt).toLocaleDateString()}
+                            {isExpired && " (Expired)"}
+                            {isExpiringSoon && " (Soon)"}
+                          </span>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteDocument(doc.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Upload Document Dialog ── */}
+      <Dialog open={docDialogOpen} onOpenChange={setDocDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload Document</DialogTitle>
+            <DialogDescription>Upload a pilot document to extract and store</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Document Type</Label>
+              <select
+                value={docType}
+                onChange={(e) => setDocType(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {DOCUMENT_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDocDragOver(true); }}
+              onDragLeave={() => setDocDragOver(false)}
+              onDrop={handleDocDrop}
+              className={`flex items-center justify-center rounded-md border border-dashed p-6 transition-colors ${
+                docDragOver
+                  ? "border-[#1A6FB5] bg-blue-50"
+                  : docFile
+                    ? "border-green-400 bg-green-50"
+                    : "border-slate-300 hover:border-slate-400"
+              }`}
+            >
+              {docFile ? (
+                <div className="flex items-center gap-3 text-sm">
+                  <FileText className="h-5 w-5 text-green-600 shrink-0" />
+                  <span className="truncate max-w-[200px]">{docFile.name}</span>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs"
+                    onClick={() => setDocFile(null)}>
+                    Clear
+                  </Button>
+                </div>
+              ) : (
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                  <Upload className="h-4 w-4" />
+                  Drop PDF/image or click to browse
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleDocFile(f); }}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Expiry Date <span className="text-xs text-muted-foreground">(auto-filled if extracted)</span></Label>
+              <Input type="date" value={docExpiry} onChange={(e) => setDocExpiry(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDocDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleUploadDocument} disabled={!docFile || docUploading} className="bg-[#1A6FB5] hover:bg-[#155d99]">
+              {docUploading ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Uploading...</> : "Upload & Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Add Course Dialog ── */}
       <Dialog open={courseDialogOpen} onOpenChange={setCourseDialogOpen}>

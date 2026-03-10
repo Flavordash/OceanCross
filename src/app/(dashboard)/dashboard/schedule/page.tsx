@@ -88,6 +88,140 @@ function toLocalDatetime(iso: string) {
   return local.toISOString().slice(0, 16);
 }
 
+// ── Shared form sub-components (defined outside to keep stable identity) ──
+
+function SelectField({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <option value="">None</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function EventFormFields({
+  data,
+  setData,
+  error,
+  lookup,
+}: {
+  data: EventForm;
+  setData: (f: EventForm) => void;
+  error: string | null;
+  lookup: LookupData | null;
+}) {
+  return (
+    <div className="space-y-4 py-2">
+      {error && (
+        <p className="text-sm text-destructive bg-destructive/10 rounded-md p-2">
+          {error}
+        </p>
+      )}
+
+      <div className="space-y-1.5">
+        <Label htmlFor="title">Title</Label>
+        <Input
+          id="title"
+          value={data.title}
+          onChange={(e) => setData({ ...data, title: e.target.value })}
+          placeholder="Flight lesson with..."
+        />
+      </div>
+
+      <SelectField
+        id="type"
+        label="Type"
+        value={data.type}
+        onChange={(v) => setData({ ...data, type: v })}
+        options={Object.entries(EVENT_LABELS).map(([value, label]) => ({
+          value,
+          label,
+        }))}
+      />
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="start">Start</Label>
+          <Input
+            id="start"
+            type="datetime-local"
+            value={data.startTime}
+            onChange={(e) => setData({ ...data, startTime: e.target.value })}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="end">End</Label>
+          <Input
+            id="end"
+            type="datetime-local"
+            value={data.endTime}
+            onChange={(e) => setData({ ...data, endTime: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {lookup && (
+        <>
+          <SelectField
+            id="aircraft"
+            label="Aircraft"
+            value={data.aircraftId}
+            onChange={(v) => setData({ ...data, aircraftId: v })}
+            options={lookup.aircraft.map((a) => ({
+              value: a.id,
+              label: `${a.registration} — ${a.model}`,
+            }))}
+          />
+          <SelectField
+            id="instructor"
+            label="Instructor"
+            value={data.instructorId}
+            onChange={(v) => setData({ ...data, instructorId: v })}
+            options={lookup.instructors.map((i) => ({
+              value: i.id,
+              label: i.fullName,
+            }))}
+          />
+          <SelectField
+            id="client"
+            label="Client"
+            value={data.studentId}
+            onChange={(v) => setData({ ...data, studentId: v })}
+            options={lookup.clients.map((s) => ({
+              value: s.id,
+              label: s.fullName,
+            }))}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Component ──────────────────────────────────────────
 
 export default function SchedulePage() {
@@ -338,140 +472,6 @@ export default function SchedulePage() {
     }
   }
 
-  // ── Select helper ────────────────────────────────────
-
-  function SelectField({
-    id,
-    label,
-    value,
-    onChange,
-    options,
-  }: {
-    id: string;
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-    options: { value: string; label: string }[];
-  }) {
-    return (
-      <div className="space-y-1.5">
-        <Label htmlFor={id}>{label}</Label>
-        <select
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <option value="">None</option>
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
-    );
-  }
-
-  // ── Form fields (shared between create & edit) ──────
-
-  function EventFormFields({
-    data,
-    setData,
-    error,
-  }: {
-    data: EventForm;
-    setData: (f: EventForm) => void;
-    error: string | null;
-  }) {
-    return (
-      <div className="space-y-4 py-2">
-        {error && (
-          <p className="text-sm text-destructive bg-destructive/10 rounded-md p-2">
-            {error}
-          </p>
-        )}
-
-        <div className="space-y-1.5">
-          <Label htmlFor="title">Title</Label>
-          <Input
-            id="title"
-            value={data.title}
-            onChange={(e) => setData({ ...data, title: e.target.value })}
-            placeholder="Flight lesson with..."
-          />
-        </div>
-
-        <SelectField
-          id="type"
-          label="Type"
-          value={data.type}
-          onChange={(v) => setData({ ...data, type: v })}
-          options={Object.entries(EVENT_LABELS).map(([value, label]) => ({
-            value,
-            label,
-          }))}
-        />
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="start">Start</Label>
-            <Input
-              id="start"
-              type="datetime-local"
-              value={data.startTime}
-              onChange={(e) => setData({ ...data, startTime: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="end">End</Label>
-            <Input
-              id="end"
-              type="datetime-local"
-              value={data.endTime}
-              onChange={(e) => setData({ ...data, endTime: e.target.value })}
-            />
-          </div>
-        </div>
-
-        {lookup && (
-          <>
-            <SelectField
-              id="aircraft"
-              label="Aircraft"
-              value={data.aircraftId}
-              onChange={(v) => setData({ ...data, aircraftId: v })}
-              options={lookup.aircraft.map((a) => ({
-                value: a.id,
-                label: `${a.registration} — ${a.model}`,
-              }))}
-            />
-            <SelectField
-              id="instructor"
-              label="Instructor"
-              value={data.instructorId}
-              onChange={(v) => setData({ ...data, instructorId: v })}
-              options={lookup.instructors.map((i) => ({
-                value: i.id,
-                label: i.fullName,
-              }))}
-            />
-            <SelectField
-              id="client"
-              label="Client"
-              value={data.studentId}
-              onChange={(v) => setData({ ...data, studentId: v })}
-              options={lookup.clients.map((s) => ({
-                value: s.id,
-                label: s.fullName,
-              }))}
-            />
-          </>
-        )}
-      </div>
-    );
-  }
-
   // ── Render ───────────────────────────────────────────
 
   return (
@@ -593,7 +593,7 @@ export default function SchedulePage() {
               automatically.
             </DialogDescription>
           </DialogHeader>
-          <EventFormFields data={form} setData={setForm} error={formError} />
+          <EventFormFields data={form} setData={setForm} error={formError} lookup={lookup} />
           <DialogFooter>
             <Button
               variant="outline"
@@ -732,6 +732,7 @@ export default function SchedulePage() {
                 data={editForm}
                 setData={setEditForm}
                 error={editError}
+                lookup={lookup}
               />
               <DialogFooter>
                 <Button

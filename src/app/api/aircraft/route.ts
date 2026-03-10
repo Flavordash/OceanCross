@@ -41,14 +41,24 @@ export async function POST(request: NextRequest) {
   if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
-  const { registration, type, model, status, totalHours, hobbsHours, tachHours } = body;
+  const { registration, type, model, status, totalHours, hobbsHours, tachHours,
+    year, emptyWeight, maxTakeoffWeight, usefulLoad, maxPassengers,
+    luggageCapacityLbs, fuelCapacityGallons, fuelUsableGallons,
+    fuelWeightLbs, fuelPerWingGallons, oilCapacityQuarts,
+    maxEnduranceHours, notes } = body;
 
   if (!registration || !type || !model) {
     return NextResponse.json({ error: "Registration, type, and model are required" }, { status: 400 });
   }
 
   try {
-    const ac = await createAircraft({ registration, type, model, status, totalHours, hobbsHours, tachHours });
+    const ac = await createAircraft({
+      registration, type, model, status, totalHours, hobbsHours, tachHours,
+      year, emptyWeight, maxTakeoffWeight, usefulLoad, maxPassengers,
+      luggageCapacityLbs, fuelCapacityGallons, fuelUsableGallons,
+      fuelWeightLbs, fuelPerWingGallons, oilCapacityQuarts,
+      maxEnduranceHours, notes,
+    });
     return NextResponse.json(ac, { status: 201 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unknown error";

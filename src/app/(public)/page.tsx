@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import FeatureScroll from "@/components/feature-scroll";
 import {
   Plane,
   Calendar,
@@ -55,7 +56,13 @@ export default function HomePage() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-br from-[#0F1B2D] via-[#152842] to-[#1A6FB5]">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgMCBoNjAgdjYwIEgwIHoiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCBmaWxsPSJ1cmwoI2cpIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIi8+PC9zdmc+')] opacity-50" />
+        {/* Background photo */}
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40"
+          style={{ backgroundImage: "url('/hero-bg.png')" }}
+        />
+        {/* Gradient overlay to blend with the base gradient */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0F1B2D]/90 via-[#152842]/70 to-[#1A6FB5]/50" />
         <div className="relative mx-auto max-w-6xl px-4 py-24 md:py-32">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-sm text-white/80 mb-6">
@@ -94,6 +101,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Interactive Feature Showcase */}
+      <FeatureScroll />
 
       {/* Features */}
       <section className="py-20 bg-slate-50">
@@ -139,8 +149,8 @@ export default function HomePage() {
                 Ready to Modernize Your Flight Operations?
               </h2>
               <p className="text-slate-400 mb-8 max-w-md mx-auto">
-                Join Crossocean Flight and experience AI-powered scheduling
-                that saves time and prevents conflicts.
+                Join CrossAirOcean and experience AI-powered scheduling that
+                saves time and prevents conflicts.
               </p>
               <div className="flex flex-wrap justify-center gap-3">
                 <Button

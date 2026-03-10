@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plane, Clock, Gauge } from "lucide-react";
+import { ArrowLeft, Clock, Gauge, Weight, Fuel } from "lucide-react";
 import { RemindersTable } from "@/components/aircraft/reminders-table";
 
 interface Aircraft {
@@ -29,6 +29,19 @@ interface Aircraft {
   totalHours: number;
   hobbsHours: number;
   tachHours: number;
+  year: number | null;
+  emptyWeight: number | null;
+  maxTakeoffWeight: number | null;
+  usefulLoad: number | null;
+  maxPassengers: number | null;
+  luggageCapacityLbs: number | null;
+  fuelCapacityGallons: number | null;
+  fuelUsableGallons: number | null;
+  fuelWeightLbs: number | null;
+  fuelPerWingGallons: number | null;
+  oilCapacityQuarts: string | null;
+  maxEnduranceHours: number | null;
+  notes: string | null;
 }
 
 interface ScheduleItem {
@@ -94,6 +107,19 @@ const MAINT_STATUS_COLORS: Record<string, string> = {
   completed: "bg-green-100 text-green-700",
 };
 
+function InfoRow({ label, value, unit }: { label: string; value: string | number | null | undefined; unit?: string }) {
+  if (value == null || value === "") return null;
+  return (
+    <div className="flex justify-between py-1.5 border-b border-slate-100 last:border-0">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="text-sm font-medium">
+        {typeof value === "number" ? value.toLocaleString() : value}
+        {unit ? ` ${unit}` : ""}
+      </span>
+    </div>
+  );
+}
+
 export default function AircraftDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -150,6 +176,11 @@ export default function AircraftDetailPage() {
     );
   }
 
+  const subtitle = [ac.type, ac.model, ac.year ? `(${ac.year})` : ""]
+    .filter(Boolean)
+    .join(" — ")
+    .replace("— (", "(");
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -164,12 +195,12 @@ export default function AircraftDetailPage() {
               {STATUS_LABELS[ac.status] ?? ac.status}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">{ac.type} — {ac.model}</p>
+          <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
@@ -203,15 +234,102 @@ export default function AircraftDetailPage() {
             </div>
           </CardContent>
         </Card>
+        {ac.maxTakeoffWeight && (
+          <Card>
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50">
+                <Weight className="h-5 w-5 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">MTOW</p>
+                <p className="text-lg font-bold">{ac.maxTakeoffWeight.toLocaleString()} <span className="text-xs font-normal text-muted-foreground">lbs</span></p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {ac.usefulLoad && (
+          <Card>
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50">
+                <Fuel className="h-5 w-5 text-teal-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Useful Load</p>
+                <p className="text-lg font-bold">{ac.usefulLoad.toLocaleString()} <span className="text-xs font-normal text-muted-foreground">lbs</span></p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="reminders" className="w-full">
+      <Tabs defaultValue="info" className="w-full">
         <TabsList>
+          <TabsTrigger value="info">Info</TabsTrigger>
           <TabsTrigger value="reminders">Reminders</TabsTrigger>
           <TabsTrigger value="schedule">Schedule</TabsTrigger>
           <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
         </TabsList>
+
+        {/* Info Tab */}
+        <TabsContent value="info">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* General */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">General</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <InfoRow label="Registration" value={ac.registration} />
+                <InfoRow label="Type" value={ac.type} />
+                <InfoRow label="Model" value={ac.model} />
+                <InfoRow label="Year" value={ac.year} />
+                <InfoRow label="Status" value={STATUS_LABELS[ac.status] ?? ac.status} />
+                <InfoRow label="Max Passengers" value={ac.maxPassengers} />
+                {ac.notes && (
+                  <div className="pt-2 mt-2 border-t border-slate-100">
+                    <p className="text-xs text-muted-foreground mb-1">Notes</p>
+                    <p className="text-sm whitespace-pre-line">{ac.notes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Weight & Balance */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">Weight & Balance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <InfoRow label="Empty Weight" value={ac.emptyWeight} unit="lbs" />
+                <InfoRow label="Max Takeoff Weight" value={ac.maxTakeoffWeight} unit="lbs" />
+                <InfoRow label="Useful Load" value={ac.usefulLoad} unit="lbs" />
+                <InfoRow label="Luggage Capacity" value={ac.luggageCapacityLbs} unit="lbs" />
+                {!ac.emptyWeight && !ac.maxTakeoffWeight && !ac.usefulLoad && (
+                  <p className="text-sm text-muted-foreground">No weight data available</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Fuel */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">Fuel & Performance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <InfoRow label="Fuel Capacity" value={ac.fuelCapacityGallons} unit="gal" />
+                <InfoRow label="Usable Fuel" value={ac.fuelUsableGallons} unit="gal" />
+                <InfoRow label="Fuel Weight" value={ac.fuelWeightLbs} unit="lbs" />
+                <InfoRow label="Per Wing" value={ac.fuelPerWingGallons} unit="gal" />
+                <InfoRow label="Oil Capacity" value={ac.oilCapacityQuarts} />
+                <InfoRow label="Max Endurance" value={ac.maxEnduranceHours} unit="hrs" />
+                {!ac.fuelCapacityGallons && !ac.maxEnduranceHours && (
+                  <p className="text-sm text-muted-foreground">No fuel data available</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         {/* Reminders Tab */}
         <TabsContent value="reminders">

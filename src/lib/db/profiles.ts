@@ -185,6 +185,26 @@ export async function setProfileTags(profileId: string, tagIds: string[]) {
 
 // ── Mechanics ──────────────────────────────────────────
 
+export interface CreateMechanicInput {
+  fullName: string;
+  email: string;
+  phone?: string | null;
+}
+
+export async function createMechanic(input: CreateMechanicInput) {
+  const [row] = await db
+    .insert(profiles)
+    .values({
+      id: crypto.randomUUID(),
+      fullName: input.fullName,
+      email: input.email,
+      phone: input.phone ?? null,
+      role: "mechanic",
+    })
+    .returning();
+  return row;
+}
+
 export async function getMechanics() {
   return db
     .select({

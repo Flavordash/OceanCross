@@ -25,7 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -57,6 +57,9 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [allTags, setAllTags] = useState<Tag[]>([]);
+
+  // Search
+  const [search, setSearch] = useState("");
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -156,10 +159,27 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#0F1B2D]">Clients</h1>
           <p className="text-sm text-muted-foreground">Client roster and flight records</p>
+        </div>
+        <div className="relative w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, email, tag..."
+            className="pl-9 pr-9"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <Button
           onClick={() => {
@@ -186,14 +206,25 @@ export default function ClientsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {clients.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    No clients registered
-                  </TableCell>
-                </TableRow>
-              ) : (
-                clients.map((c) => (
+              {(() => {
+                const filtered = clients.filter((c) => {
+                  if (!search) return true;
+                  const q = search.toLowerCase();
+                  return (
+                    c.fullName.toLowerCase().includes(q) ||
+                    c.email.toLowerCase().includes(q) ||
+                    (c.phone?.toLowerCase().includes(q) ?? false) ||
+                    c.tags.some((t) => t.name.toLowerCase().includes(q))
+                  );
+                });
+                if (filtered.length === 0) return (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      {search ? "No results found" : "No clients registered"}
+                    </TableCell>
+                  </TableRow>
+                );
+                return filtered.map((c) => (
                   <TableRow
                     key={c.id}
                     className="cursor-pointer hover:bg-muted/50"
@@ -225,8 +256,8 @@ export default function ClientsPage() {
                       )}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
+                ));
+              })()}
             </TableBody>
           </Table>
         </CardContent>

@@ -116,6 +116,15 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Logo Y-axis spin on hover */
+.logo-hover {
+  display: inline-block;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.logo-hover:hover {
+  transform: perspective(300px) rotateY(360deg);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

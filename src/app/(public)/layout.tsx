@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plane } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 
 export default function PublicLayout({
@@ -13,11 +13,16 @@ export default function PublicLayout({
       <header className="sticky top-0 z-50 border-b bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0F1B2D]">
-              <Plane className="h-5 w-5 text-white" />
-            </div>
+            <span className="logo-hover">
+              <Image
+                src="/logo.svg"
+                alt="CrossAirOcean"
+                width={40}
+                height={40}
+              />
+            </span>
             <span className="text-lg font-bold text-[#0F1B2D]">
-              Crossocean Flight
+              CrossAirOcean
             </span>
           </Link>
           <nav className="hidden md:flex items-center gap-6">
@@ -64,8 +69,10 @@ export default function PublicLayout({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Plane className="h-5 w-5" />
-                <span className="font-bold">Crossocean Flight</span>
+                <span className="logo-hover">
+                  <Image src="/logo.svg" alt="CrossAirOcean" width={28} height={28} />
+                </span>
+                <span className="font-bold">CrossAirOcean</span>
               </div>
               <p className="text-sm text-slate-400">
                 AI-Powered Aviation Scheduling Platform based in Florida.
@@ -95,7 +102,7 @@ export default function PublicLayout({
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-slate-700 text-center text-sm text-slate-500">
-            &copy; {new Date().getFullYear()} Crossocean Flight. All rights
+            &copy; {new Date().getFullYear()} CrossAirOcean. All rights
             reserved.
           </div>
         </div>

@@ -12,7 +12,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
-import { Menu, LogOut, Plane } from "lucide-react";
+import { Menu, LogOut } from "lucide-react";
+import Image from "next/image";
 
 interface UserProfile {
   fullName: string;
@@ -72,14 +73,20 @@ export default function DashboardLayout({
     <>
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1A6FB5]">
-          <Plane className="h-5 w-5 text-white" />
-        </div>
+        <span className="logo-hover">
+          <Image
+            src="/logo.svg"
+            alt="CrossAirOcean"
+            width={36}
+            height={36}
+            className="rounded-lg"
+          />
+        </span>
         <div>
           <h1 className="text-sm font-bold text-white tracking-wide">
-            Crossocean
+            CrossAirOcean
           </h1>
-          <p className="text-[11px] text-slate-400">Flight Operations</p>
+          <p className="text-[11px] text-slate-400">Make Aviation Fun</p>
         </div>
       </div>
 

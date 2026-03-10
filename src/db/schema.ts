@@ -8,6 +8,7 @@ import {
   boolean,
   jsonb,
   real,
+  index,
 } from "drizzle-orm/pg-core";
 
 // ── Enums ──────────────────────────────────────────────
@@ -78,6 +79,35 @@ export const dispatchStatusEnum = pgEnum("dispatch_status", [
   "cancelled",
 ]);
 
+export const eventDispatchStatusEnum = pgEnum("event_dispatch_status", [
+  "pending",
+  "cleared",
+  "limited",
+  "rejected",
+]);
+
+export const tsaClearanceStatusEnum = pgEnum("tsa_clearance_status", [
+  "pending",
+  "approved",
+  "denied",
+  "expired",
+]);
+
+export const checkoutStatusEnum = pgEnum("checkout_status", [
+  "active",
+  "expired",
+  "suspended",
+]);
+
+export const documentTypeEnum = pgEnum("document_type", [
+  "aircraft_wb",
+  "medical_certificate",
+  "renters_insurance",
+  "parts_receipt",
+  "pilot_certificate",
+  "other",
+]);
+
 // ── Tables ─────────────────────────────────────────────
 
 export const profiles = pgTable("profiles", {
@@ -87,6 +117,7 @@ export const profiles = pgTable("profiles", {
   role: userRoleEnum("role").notNull().default("student"),
   phone: text("phone"),
   avatarUrl: text("avatar_url"),
+  weightLbs: real("weight_lbs"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -105,6 +136,20 @@ export const aircraft = pgTable("aircraft", {
   totalHours: integer("total_hours").notNull().default(0),
   hobbsHours: real("hobbs_hours").notNull().default(0),
   tachHours: real("tach_hours").notNull().default(0),
+  year: integer("year"),
+  emptyWeight: real("empty_weight"),
+  maxTakeoffWeight: real("max_takeoff_weight"),
+  usefulLoad: real("useful_load"),
+  maxPassengers: integer("max_passengers"),
+  luggageCapacityLbs: real("luggage_capacity_lbs"),
+  fuelCapacityGallons: real("fuel_capacity_gallons"),
+  fuelUsableGallons: real("fuel_usable_gallons"),
+  fuelWeightLbs: real("fuel_weight_lbs"),
+  fuelPerWingGallons: real("fuel_per_wing_gallons"),
+  oilCapacityQuarts: text("oil_capacity_quarts"),
+  maxEnduranceHours: real("max_endurance_hours"),
+  vSpeeds: jsonb("v_speeds"),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -125,6 +170,7 @@ export const scheduleEvents = pgTable("schedule_events", {
   studentId: uuid("student_id").references(() => profiles.id),
   status: eventStatusEnum("status").notNull().default("scheduled"),
   dispatchStatus: text("dispatch_status"), // null | "dispatched" | "returned"
+  dispatchData: jsonb("dispatch_data"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -132,7 +178,12 @@ export const scheduleEvents = pgTable("schedule_events", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (table) => [
+  index("schedule_events_start_time_idx").on(table.startTime),
+  index("schedule_events_aircraft_id_idx").on(table.aircraftId),
+  index("schedule_events_instructor_id_idx").on(table.instructorId),
+  index("schedule_events_student_id_idx").on(table.studentId),
+]);
 
 export const maintenanceJobs = pgTable("maintenance_jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -152,13 +203,13 @@ export const maintenanceJobs = pgTable("maintenance_jobs", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (table) => [
+  index("maintenance_jobs_aircraft_status_idx").on(table.aircraftId, table.status),
+]);
 
 export const partsOrders = pgTable("parts_orders", {
   id: uuid("id").primaryKey().defaultRandom(),
-  jobId: uuid("job_id")
-    .notNull()
-    .references(() => maintenanceJobs.id),
+  jobId: uuid("job_id").references(() => maintenanceJobs.id),
   partName: text("part_name").notNull(),
   supplier: text("supplier"),
   orderDate: timestamp("order_date", { withTimezone: true })
@@ -528,6 +579,90 @@ export const instructorSpecialtyAssignments = pgTable("instructor_specialty_assi
     .notNull()
     .references(() => instructorSpecialties.id, { onDelete: "cascade" }),
   hourlyRate: real("hourly_rate").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ── Credential & Checkout Tables ─────────────────────
+
+export const pilotCredentials = pgTable("pilot_credentials", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id")
+    .notNull()
+    .references(() => profiles.id),
+  tsaClearanceStatus: tsaClearanceStatusEnum("tsa_clearance_status"),
+  tsaClearanceExpiry: timestamp("tsa_clearance_expiry", { withTimezone: true }),
+  lastFlightReviewDate: timestamp("last_flight_review_date", { withTimezone: true }),
+  rentersInsuranceExpiry: timestamp("renters_insurance_expiry", { withTimezone: true }),
+  medicalClass: medicalClassEnum("medical_class"),
+  medicalExpiry: timestamp("medical_expiry", { withTimezone: true }),
+  certificateType: pilotCertificateEnum("certificate_type"),
+  certificateNumber: text("certificate_number"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+}, (table) => [
+  index("pilot_credentials_profile_medical_idx").on(table.profileId, table.medicalExpiry),
+]);
+
+export const pilotCheckouts = pgTable("pilot_checkouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  pilotId: uuid("pilot_id")
+    .notNull()
+    .references(() => profiles.id),
+  aircraftId: uuid("aircraft_id")
+    .notNull()
+    .references(() => aircraft.id),
+  checkoutDate: timestamp("checkout_date", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  status: checkoutStatusEnum("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+}, (table) => [
+  index("pilot_checkouts_pilot_aircraft_idx").on(table.pilotId, table.aircraftId),
+]);
+
+// ── W&B Stations ─────────────────────────────────────
+
+export const aircraftWbStations = pgTable("aircraft_wb_stations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  aircraftId: uuid("aircraft_id")
+    .notNull()
+    .references(() => aircraft.id),
+  stationName: text("station_name").notNull(),
+  arm: real("arm").notNull(),
+  minWeight: real("min_weight"),
+  maxWeight: real("max_weight"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ── Documents ────────────────────────────────────────
+
+export const documents = pgTable("documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id").references(() => profiles.id),
+  aircraftId: uuid("aircraft_id").references(() => aircraft.id),
+  type: documentTypeEnum("type").notNull(),
+  fileUrl: text("file_url").notNull(),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  extractedData: jsonb("extracted_data"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

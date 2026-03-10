@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -51,6 +51,9 @@ export default function InstructorsPage() {
   const router = useRouter();
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Search
+  const [search, setSearch] = useState("");
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -114,10 +117,27 @@ export default function InstructorsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#0F1B2D]">Instructors</h1>
           <p className="text-sm text-muted-foreground">Flight instructors and teaching records</p>
+        </div>
+        <div className="relative w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, email, specialty..."
+            className="pl-9 pr-9"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <Button
           onClick={() => {
@@ -145,14 +165,25 @@ export default function InstructorsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {instructors.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    No instructors registered
-                  </TableCell>
-                </TableRow>
-              ) : (
-                instructors.map((inst) => {
+              {(() => {
+                const filtered = instructors.filter((inst) => {
+                  if (!search) return true;
+                  const q = search.toLowerCase();
+                  return (
+                    inst.fullName.toLowerCase().includes(q) ||
+                    inst.email.toLowerCase().includes(q) ||
+                    (inst.phone?.toLowerCase().includes(q) ?? false) ||
+                    inst.specialties.some((s) => s.name.toLowerCase().includes(q))
+                  );
+                });
+                if (filtered.length === 0) return (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      {search ? "No results found" : "No instructors registered"}
+                    </TableCell>
+                  </TableRow>
+                );
+                return filtered.map((inst) => {
                   const auth = getAuthStatus(inst);
                   return (
                     <TableRow
@@ -202,8 +233,8 @@ export default function InstructorsPage() {
                       </TableCell>
                     </TableRow>
                   );
-                })
-              )}
+                });
+              })()}
             </TableBody>
           </Table>
         </CardContent>

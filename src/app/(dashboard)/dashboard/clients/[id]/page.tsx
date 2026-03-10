@@ -290,15 +290,12 @@ export default function ClientDetailPage() {
     );
   }
 
-  const isStudent = tags.some((t) => t.name.toLowerCase() === "student");
-
-  const allTabs = [
+  const tabs = [
     { id: "personal" as const, label: "Personal" },
     { id: "ledger" as const, label: "Ledger" },
     { id: "pilot" as const, label: "Pilot" },
     { id: "history" as const, label: "Client History" },
   ];
-  const tabs = allTabs.filter((t) => t.id !== "pilot" || isStudent);
 
   return (
     <div className="space-y-4">

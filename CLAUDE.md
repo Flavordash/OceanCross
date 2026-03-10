@@ -71,8 +71,8 @@ Week 4: 실 데이터 투입
 
 ```
 Week 5-6:  Auth + 대시보드 + 스케줄링 + 자격검증
-Week 7-8:  Dispatch W&B 체크 + AI 챗봇
-Week 9:    퍼블릭 웹사이트
+Week 7-8:  Aircraft 전체 (상세 5탭, W&B 계산기) + Dispatch 체크
+Week 9:    AI 챗봇 + Students/Mechanics + 퍼블릭 웹사이트
 Week 10:   테스트 + 배포
 ```
 
@@ -196,10 +196,17 @@ tools/
 
 ### aircraft
 
-- id, registration (unique), type, model, year
+- id, registration (unique), type (single_engine|multi_engine|helicopter), model, year
 - status (available|in_maintenance|grounded)
-- total_hours, empty_weight, max_takeoff_weight
-- max_passengers, fuel_capacity_gallons, useful_load
+- total_hours, empty_weight, max_takeoff_weight, useful_load (자동계산 가능)
+- max_passengers, luggage_capacity_lbs
+- fuel_capacity_gallons (총 연료), fuel_usable_gallons (사용 가능 연료)
+- fuel_weight_lbs (연료 무게), fuel_per_wing_gallons
+- oil_capacity_quarts
+- max_endurance_hours (최대 비행시간, not leaned 기준)
+- v_speeds (JSONB) — {Vr, Vx, Vy, Va, Vs, Vso, Vfe, Vno, Vne, best_glide, climb, max_crosswind}
+- notes (text) — 비행기별 메모
+- **V-Speeds는 비행기 타입마다 항목이 다를 수 있어서 JSONB로 유연하게 저장**
 
 ### aircraft_wb_stations
 
@@ -349,17 +356,28 @@ src/
 │   ├── (dashboard)/
 │   │   ├── dashboard/         # 오늘 비행 + Dispatch 현황
 │   │   ├── schedule/
-│   │   ├── aircraft/          # W&B 데이터 + 계산기
-│   │   │   └── [id]/          # 비행기 상세 + W&B
+│   │   ├── aircraft/          # 비행기 관리
+│   │   │   ├── page.tsx       # 목록
+│   │   │   └── [id]/
+│   │   │       └── page.tsx   # 상세 (5탭: Overview, W&B Calc, Flight History, Maintenance, Documents)
 │   │   ├── students/
+│   │   │   ├── page.tsx       # 목록
+│   │   │   └── [id]/page.tsx  # 상세 (자격 + 비행 기록)
 │   │   ├── mechanics/
+│   │   │   ├── page.tsx       # 목록
+│   │   │   └── [id]/page.tsx  # 상세 (배정 jobs)
 │   │   ├── credentials/
 │   │   ├── upload/            # 문서 업로드 → 자동 추출 → 폼
 │   │   └── chat/
 │   ├── api/
 │   │   ├── chat/route.ts
 │   │   ├── schedule/route.ts
-│   │   ├── aircraft/route.ts
+│   │   ├── aircraft/
+│   │   │   ├── route.ts            # GET(목록), POST(생성)
+│   │   │   └── [id]/
+│   │   │       ├── route.ts        # GET(상세), PUT(수정), DELETE
+│   │   │       ├── documents/route.ts  # 문서 업로드/목록
+│   │   │       └── wb-calculate/route.ts  # W&B 계산
 │   │   ├── credentials/route.ts
 │   │   ├── dispatch/route.ts     # Dispatch W&B 계산
 │   │   ├── upload/route.ts       # 문서 업로드 + 추출
@@ -370,7 +388,10 @@ src/
 │   ├── calendar/
 │   ├── chat/
 │   ├── aircraft/
-│   │   └── wb-calculator.tsx
+│   │   ├── wb-calculator.tsx       # W&B 계산기 (승객/연료 입력 → 실시간 계산)
+│   │   ├── aircraft-form.tsx       # 추가/수정 폼 (5탭: 기본, Weight&Fuel, V-Speeds, Stations, 문서)
+│   │   ├── v-speeds-card.tsx       # V-Speed 그리드 카드
+│   │   └── flight-history.tsx      # 비행 기록 테이블 (교관/학생 클릭 이동)
 │   ├── dispatch/
 │   │   └── dispatch-card.tsx     # Dispatch 상태 카드
 │   ├── upload/
@@ -378,6 +399,11 @@ src/
 │   └── layout/
 ├── lib/
 │   ├── db/
+│   │   ├── index.ts               # DB 클라이언트
+│   │   ├── aircraft.ts            # 비행기 CRUD + 기록 조회 (JOIN)
+│   │   ├── schedule.ts            # 스케줄 CRUD
+│   │   ├── credentials.ts         # 자격 조회
+│   │   └── profiles.ts            # 유저 CRUD
 │   ├── ai/
 │   │   ├── index.ts              # 모델 라우터 (한 곳에서 관리)
 │   │   ├── tools.ts
@@ -440,23 +466,30 @@ src/
 - [ ] 예약 시 자격 검증 + 충돌 감지
 - [ ] Credentials 관리 페이지
 
-### Week 7-8: Dispatch + AI 챗봇
+### Week 7-8: Aircraft 전체 + Dispatch
 
+- [ ] Aircraft 목록 + 추가/수정 Dialog (5탭: 기본, Weight&Fuel, V-Speeds, Stations, 문서)
+- [ ] Aircraft 상세 페이지 (5탭: Overview, W&B Calc, Flight History, Maintenance, Documents)
+- [ ] W&B 계산기 (실시간 계산, CG 범위 표시)
+- [ ] V-Speeds 카드
+- [ ] 문서 업로드 → PDF 뷰어
 - [ ] Dispatch W&B 자동 계산 (예약 생성/수정 시)
 - [ ] Dispatch 카드 (대시보드에 경고 표시)
-- [ ] Aircraft 관리 + W&B 계산기
-- [ ] AI 챗봇 (streaming, 7개 tools)
-- [ ] AI 모델 라우터 (복잡/단순 분리)
+- [ ] 비행기↔기록↔교관↔학생 상호 링크
+
+### Week 9: AI 챗봇 + 인원관리 + 웹사이트
+
+- [ ] AI 챗봇 (streaming, 7개 tools, 모델 라우터)
 - [ ] FAQ 정적 응답
-
-### Week 9: 웹사이트
-
+- [ ] Students 목록 + 상세 (자격 뱃지, 비행 기록)
+- [ ] Mechanics 목록 + 상세 (배정 jobs)
 - [ ] 홈, Services, Contact
 - [ ] 모바일 반응형 + SEO
 
 ### Week 10: 배포
 
-- [ ] 전체 테스트 + Vercel 배포
+- [ ] 전체 테스트 (12개 프롬프트 기능 전부)
+- [ ] Vercel 배포
 - [ ] Supabase RLS
 - [ ] 환경 분리 (.env.production)
 
