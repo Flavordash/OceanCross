@@ -14,6 +14,64 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Search, Loader2, Upload, FileText } from "lucide-react";
+import type { AircraftExtracted } from "@/lib/parsers/regex-patterns";
+
+// ── File → base64 image(s) conversion ──
+
+async function fileToImages(file: File): Promise<string[]> {
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+
+  if (["png", "jpg", "jpeg", "webp"].includes(ext)) {
+    // Image: read directly as base64 data URL
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve([reader.result as string]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (ext === "pdf") {
+    // PDF: render each page to canvas → PNG data URL
+    const pdfjs = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url
+    ).href;
+
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
+    const images: string[] = [];
+
+    for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 }); // 2x for readability
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext("2d")!;
+      await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+      images.push(canvas.toDataURL("image/png"));
+    }
+
+    return images;
+  }
+
+  throw new Error("Unsupported file type. Use PDF, PNG, or JPG.");
+}
+
+// ── Vision AI extraction ──
+
+async function visionExtract(images: string[]): Promise<AircraftExtracted> {
+  const res = await fetch("/api/extract", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ images, type: "aircraft" }),
+  });
+  if (!res.ok) throw new Error("AI extraction failed");
+  const data = await res.json();
+  return data.extracted as AircraftExtracted;
+}
 
 // ── Types ──
 
@@ -220,53 +278,89 @@ export function AircraftFormDialog({
     [handleFile]
   );
 
-  // Extract data from uploaded document
+  // Extract data from uploaded document — GPT-4o-mini vision
   async function handleExtract() {
     if (!uploadFile) return;
     setUploading(true);
     setExtractError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", uploadFile);
-      formData.append("type", "aircraft");
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        setExtractError(errData.error ?? `Upload failed (${res.status})`);
+      // Step 1: convert file to base64 image(s)
+      let images: string[];
+      try {
+        images = await fileToImages(uploadFile);
+      } catch (e) {
+        setExtractError(e instanceof Error ? e.message : "Failed to read file");
         return;
       }
 
-      const data = await res.json();
-      const ex = data.extracted;
+      // Step 2: send images to GPT-4o-mini vision
+      let ex: AircraftExtracted;
+      try {
+        ex = await visionExtract(images);
+      } catch {
+        setExtractError("AI extraction failed. Please try again.");
+        return;
+      }
 
-      // Check if anything was actually extracted
-      const hasData = Object.values(ex).some(
-        (v) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0) && !(typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0)
-      );
+      const hasData =
+        ex.registration !== null ||
+        ex.model !== null ||
+        ex.empty_weight !== null ||
+        ex.max_takeoff_weight !== null ||
+        ex.fuel_capacity_gallons !== null ||
+        ex.year !== null;
 
       if (!hasData) {
-        setExtractError("No data could be extracted from this file. Try a different format or enter values manually.");
+        setExtractError(
+          "No data found. If this is a scanned PDF, try exporting as PNG first."
+        );
         return;
+      }
+
+      // Step 3: if registration found in doc, auto-call FAA to get model/year/type
+      let faaModel = ex.model;
+      let faaYear = ex.year;
+      let faaType = form.type;
+      let faaReg = ex.registration;
+
+      if (ex.registration) {
+        try {
+          const faaRes = await fetch(
+            `/api/faa?n=${encodeURIComponent(ex.registration)}`
+          );
+          if (faaRes.ok) {
+            const faa = await faaRes.json();
+            if (!faa.error && !faa.message) {
+              faaReg = faa.registration ?? faaReg;
+              faaModel =
+                faa.manufacturer && faa.model
+                  ? `${faa.manufacturer} ${faa.model}`.trim()
+                  : faaModel ?? faa.model ?? faaModel;
+              faaYear =
+                faa.year && faa.year !== "None"
+                  ? parseInt(faa.year) || faaYear
+                  : faaYear;
+              faaType = faa.type_aircraft || faaType;
+            }
+          }
+        } catch {
+          // FAA lookup is best-effort; continue with AI-extracted data
+        }
       }
 
       setForm({
         ...form,
-        registration: ex.registration ?? form.registration,
-        model: ex.model ?? form.model,
-        year: ex.year ?? form.year,
+        registration: faaReg ?? form.registration,
+        model: faaModel ?? form.model,
+        type: faaType ?? form.type,
+        year: faaYear ?? form.year,
         emptyWeight: ex.empty_weight ?? form.emptyWeight,
         maxTakeoffWeight: ex.max_takeoff_weight ?? form.maxTakeoffWeight,
         usefulLoad: ex.useful_load ?? form.usefulLoad,
         maxPassengers: ex.max_passengers ?? form.maxPassengers,
         luggageCapacityLbs: ex.luggage_capacity_lbs ?? form.luggageCapacityLbs,
-        fuelCapacityGallons:
-          ex.fuel_capacity_gallons ?? form.fuelCapacityGallons,
+        fuelCapacityGallons: ex.fuel_capacity_gallons ?? form.fuelCapacityGallons,
         fuelUsableGallons: ex.fuel_usable_gallons ?? form.fuelUsableGallons,
         fuelWeightLbs: ex.fuel_weight_lbs ?? form.fuelWeightLbs,
         fuelPerWingGallons: ex.fuel_per_wing_gallons ?? form.fuelPerWingGallons,
@@ -274,8 +368,10 @@ export function AircraftFormDialog({
         maxEnduranceHours: ex.max_endurance_hours ?? form.maxEnduranceHours,
       });
       setExtracted(true);
-    } catch {
-      setExtractError("Extraction failed. Please try again.");
+    } catch (e) {
+      setExtractError(
+        `Extraction failed: ${e instanceof Error ? e.message : "unknown error"}`
+      );
     } finally {
       setUploading(false);
     }

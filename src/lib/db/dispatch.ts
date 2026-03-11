@@ -7,6 +7,33 @@ import {
 } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
+export async function getDispatchHistory(limit = 50) {
+  return db
+    .select({
+      id: dispatchLogs.id,
+      status: dispatchLogs.status,
+      hobbsOut: dispatchLogs.hobbsOut,
+      tachOut: dispatchLogs.tachOut,
+      hobbsIn: dispatchLogs.hobbsIn,
+      tachIn: dispatchLogs.tachIn,
+      hobbsFlown: dispatchLogs.hobbsFlown,
+      tachFlown: dispatchLogs.tachFlown,
+      maintenanceStatus: dispatchLogs.maintenanceStatus,
+      departTime: dispatchLogs.departTime,
+      returnTime: dispatchLogs.returnTime,
+      notes: dispatchLogs.notes,
+      aircraftId: dispatchLogs.aircraftId,
+      aircraftRegistration: aircraft.registration,
+      aircraftModel: aircraft.model,
+      pilotName: profiles.fullName,
+    })
+    .from(dispatchLogs)
+    .leftJoin(aircraft, eq(dispatchLogs.aircraftId, aircraft.id))
+    .leftJoin(profiles, eq(dispatchLogs.pilotId, profiles.id))
+    .orderBy(desc(dispatchLogs.departTime))
+    .limit(limit);
+}
+
 // ── Types ──────────────────────────────────────────────
 
 export interface CreateDispatchInput {

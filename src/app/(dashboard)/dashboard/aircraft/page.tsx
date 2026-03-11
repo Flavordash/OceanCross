@@ -134,25 +134,29 @@ export default function AircraftPage() {
     }
     setSaving(true);
 
-    const method = editId ? "PUT" : "POST";
-    const body = editId ? { id: editId, ...form } : form;
+    try {
+      const method = editId ? "PUT" : "POST";
+      const body = editId ? { id: editId, ...form } : form;
 
-    const res = await fetch("/api/aircraft", {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+      const res = await fetch("/api/aircraft", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-    if (!res.ok) {
-      const data = await res.json();
-      setFormError(data.error ?? "Failed");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setFormError(data.error ?? `Save failed (${res.status})`);
+        return;
+      }
+
+      setFormOpen(false);
+      fetchAircraft();
+    } catch {
+      setFormError("Network error. Please try again.");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    setSaving(false);
-    setFormOpen(false);
-    fetchAircraft();
   }
 
   async function handleDelete(e: React.MouseEvent, id: string) {

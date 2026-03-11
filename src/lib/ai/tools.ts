@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/schedule";
 import { getAllAircraft } from "@/lib/db/aircraft";
 import { getAircraftReminders } from "@/lib/db/reminders";
+import { getMetar, getTaf, getForecastsForWindow, worstFlightCategory } from "@/lib/external/weather-api";
 
 const checkAvailabilityParams = z.object({
   startDate: z.string().describe("Start date in ISO format (e.g. 2025-01-15)"),
@@ -257,6 +258,72 @@ export function createTools(userId: string, userRole: string) {
               .length,
             grounded: list.filter((a) => a.status === "grounded").length,
           },
+        };
+      },
+    }),
+
+    get_weather: tool({
+      description:
+        "Get current METAR weather and TAF forecast for an airport. Use when users ask about weather, VFR/IFR conditions, wind, visibility, or flight feasibility. Common Florida airports: KFLL (Fort Lauderdale), KMIA (Miami), KFXE (Fort Lauderdale Executive), KOPF (Opa-locka), KTMB (Kendall-Tamiami).",
+      inputSchema: z.object({
+        icaoId: z.string().describe("4-letter ICAO airport identifier (e.g. KFLL, KMIA)"),
+        flightStart: z.string().optional().describe("Flight start time ISO string — used to find relevant TAF period"),
+        flightEnd: z.string().optional().describe("Flight end time ISO string — used to find relevant TAF period"),
+      }),
+      execute: async ({ icaoId, flightStart, flightEnd }) => {
+        const [metar, taf] = await Promise.all([
+          getMetar(icaoId),
+          getTaf(icaoId),
+        ]);
+
+        // TAF 구간 필터 (비행 시간대와 겹치는 예보만)
+        let relevantForecasts = taf?.fcsts ?? [];
+        if (flightStart && flightEnd && relevantForecasts.length > 0) {
+          relevantForecasts = getForecastsForWindow(
+            relevantForecasts,
+            new Date(flightStart),
+            new Date(flightEnd)
+          );
+        }
+
+        const forecastCats = relevantForecasts.map((f) => f.fltCat);
+        const worstCat = forecastCats.length > 0 ? worstFlightCategory(forecastCats) : null;
+
+        return {
+          airport: icaoId.toUpperCase(),
+          current: metar
+            ? {
+                raw: metar.rawOb,
+                flightCategory: metar.fltCat,
+                visibility: metar.visib,
+                wind: metar.wdir != null && metar.wspd != null
+                  ? `${String(metar.wdir).padStart(3, "0")}° at ${metar.wspd}kt${metar.wgst ? ` gusting ${metar.wgst}kt` : ""}`
+                  : null,
+                clouds: metar.clouds,
+                temp: metar.temp,
+                altimeter: metar.altim,
+                observedAt: metar.obsTime,
+              }
+            : null,
+          forecast: taf
+            ? {
+                raw: taf.rawTAF,
+                validFrom: taf.validTimeFrom,
+                validTo: taf.validTimeTo,
+                flightWindowWorstCategory: worstCat,
+                periods: relevantForecasts.map((f) => ({
+                  from: f.timeFrom,
+                  to: f.timeTo,
+                  flightCategory: f.fltCat,
+                  wind: f.wdir != null && f.wspd != null
+                    ? `${String(f.wdir).padStart(3, "0")}° at ${f.wspd}kt${f.wgst ? ` gusting ${f.wgst}kt` : ""}`
+                    : null,
+                  visibility: f.visib,
+                  clouds: f.clouds,
+                })),
+              }
+            : null,
+          dataAvailable: !!metar,
         };
       },
     }),

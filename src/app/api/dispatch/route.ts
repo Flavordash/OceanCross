@@ -5,6 +5,7 @@ import {
   recordReturn,
   getDispatchByEventId,
   getAircraftDispatchHistory,
+  getDispatchHistory,
   cancelDispatch,
   getPreflightData,
 } from "@/lib/db/dispatch";
@@ -41,7 +42,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(history);
   }
 
-  return NextResponse.json({ error: "eventId or aircraftId required" }, { status: 400 });
+  // No filter → return full history (admin/instructor view)
+  const history = await getDispatchHistory();
+  return NextResponse.json(history);
 }
 
 export async function POST(request: NextRequest) {

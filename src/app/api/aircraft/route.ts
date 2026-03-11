@@ -65,7 +65,8 @@ export async function POST(request: NextRequest) {
     if (msg.includes("unique")) {
       return NextResponse.json({ error: "Registration already exists" }, { status: 409 });
     }
-    throw e;
+    console.error("createAircraft error:", e);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 

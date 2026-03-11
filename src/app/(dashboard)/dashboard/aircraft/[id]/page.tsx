@@ -17,8 +17,23 @@ import {
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Clock, Gauge, Weight, Fuel } from "lucide-react";
+import { ArrowLeft, Clock, Gauge, Weight, Fuel, PlaneTakeoff, CheckCircle2, AlertCircle, XCircle } from "lucide-react";
 import { RemindersTable } from "@/components/aircraft/reminders-table";
+
+interface DispatchLog {
+  id: string;
+  status: string;
+  hobbsOut: number;
+  tachOut: number;
+  hobbsIn: number | null;
+  tachIn: number | null;
+  hobbsFlown: number | null;
+  tachFlown: number | null;
+  maintenanceStatus: string;
+  departTime: string;
+  returnTime: string | null;
+  pilotName: string | null;
+}
 
 interface Aircraft {
   id: string;
@@ -129,6 +144,7 @@ export default function AircraftDetailPage() {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [flights, setFlights] = useState<DispatchLog[]>([]);
   const [role, setRole] = useState("student");
   const [loading, setLoading] = useState(true);
 
@@ -149,17 +165,19 @@ export default function AircraftDetailPage() {
   }, [aircraftId]);
 
   async function loadAll() {
-    const [acRes, schedRes, maintRes, remRes] = await Promise.all([
+    const [acRes, schedRes, maintRes, remRes, flightRes] = await Promise.all([
       fetch(`/api/aircraft?id=${aircraftId}`),
       fetch(`/api/aircraft?id=${aircraftId}&detail=schedule`),
       fetch(`/api/aircraft?id=${aircraftId}&detail=maintenance`),
       fetch(`/api/aircraft/reminders?aircraftId=${aircraftId}`),
+      fetch(`/api/dispatch?aircraftId=${aircraftId}`),
     ]);
 
     if (acRes.ok) setAc(await acRes.json());
     if (schedRes.ok) setSchedule(await schedRes.json());
     if (maintRes.ok) setMaintenance(await maintRes.json());
     if (remRes.ok) setReminders(await remRes.json());
+    if (flightRes.ok) setFlights(await flightRes.json());
   }
 
   function refreshReminders() {
@@ -267,6 +285,9 @@ export default function AircraftDetailPage() {
         <TabsList>
           <TabsTrigger value="info">Info</TabsTrigger>
           <TabsTrigger value="reminders">Reminders</TabsTrigger>
+          <TabsTrigger value="flights">
+            Flights {flights.length > 0 && <span className="ml-1 text-xs">({flights.length})</span>}
+          </TabsTrigger>
           <TabsTrigger value="schedule">Schedule</TabsTrigger>
           <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
         </TabsList>
@@ -341,6 +362,84 @@ export default function AircraftDetailPage() {
                 canEdit={canEdit}
                 onRefresh={refreshReminders}
               />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Flights Tab */}
+        <TabsContent value="flights">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Dispatch History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {flights.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No dispatch records yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {/* Summary row */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="rounded-lg bg-slate-50 p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Total Flights</p>
+                      <p className="text-xl font-bold">{flights.length}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Hobbs Flown</p>
+                      <p className="text-xl font-bold">
+                        {flights.reduce((s, f) => s + (f.hobbsFlown ?? 0), 0).toFixed(1)}
+                        <span className="text-xs font-normal text-muted-foreground"> hrs</span>
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Tach Flown</p>
+                      <p className="text-xl font-bold">
+                        {flights.reduce((s, f) => s + (f.tachFlown ?? 0), 0).toFixed(1)}
+                        <span className="text-xs font-normal text-muted-foreground"> hrs</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Log rows */}
+                  {flights.map((f) => {
+                    const maint = f.maintenanceStatus;
+                    const MaintIcon = maint === "pass" ? CheckCircle2 : maint === "review" ? AlertCircle : XCircle;
+                    const maintColor = maint === "pass" ? "text-green-600" : maint === "review" ? "text-orange-500" : "text-red-600";
+                    const statusBadge = f.status === "returned"
+                      ? "bg-green-100 text-green-700"
+                      : f.status === "dispatched"
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-slate-100 text-slate-600";
+
+                    return (
+                      <div key={f.id} className="flex items-center justify-between rounded border p-3 gap-3">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <PlaneTakeoff className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">
+                              {new Date(f.departTime).toLocaleDateString()} {" "}
+                              {new Date(f.departTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                            </p>
+                            <Badge variant="outline" className={`text-xs ${statusBadge}`}>
+                              {f.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {f.pilotName ?? "Unknown pilot"}
+                            {f.hobbsFlown != null && ` — ${f.hobbsFlown.toFixed(1)} hrs (Hobbs)`}
+                            {f.returnTime && ` — RTB ${new Date(f.returnTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+                          <span>H: {f.hobbsOut} → {f.hobbsIn ?? "—"}</span>
+                          <MaintIcon className={`h-4 w-4 ${maintColor}`} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import type { MetarData, TafData, FlightCategory } from "@/lib/external/weather-api";
+import { flightCategoryBadgeClass, flightCategoryLabel, getForecastsForWindow, worstFlightCategory } from "@/lib/external/weather-api";
 
 const PREFLIGHT_ITEMS = [
   { key: "proficiencyCheck", label: "Annual Proficiency Check verified" },
@@ -63,6 +65,13 @@ interface PreflightData {
   existingDispatch: unknown;
 }
 
+interface WeatherState {
+  metar: MetarData | null;
+  taf: TafData | null;
+  loading: boolean;
+  error: string | null;
+}
+
 export function DispatchModal({ open, onOpenChange, eventId, onDispatched }: Props) {
   const [data, setData] = useState<PreflightData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -73,6 +82,21 @@ export function DispatchModal({ open, onOpenChange, eventId, onDispatched }: Pro
   const [tachOut, setTachOut] = useState("");
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState("");
+
+  const [icao, setIcao] = useState("KFLL");
+  const [weather, setWeather] = useState<WeatherState>({ metar: null, taf: null, loading: false, error: null });
+
+  function fetchWeather(id: string) {
+    if (!id || id.length !== 4) return;
+    setWeather((w) => ({ ...w, loading: true, error: null }));
+    fetch(`/api/weather?icao=${id.toUpperCase()}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Weather fetch failed");
+        return r.json();
+      })
+      .then((d) => setWeather({ metar: d.metar, taf: d.taf, loading: false, error: null }))
+      .catch((e) => setWeather((w) => ({ ...w, loading: false, error: e.message })));
+  }
 
   useEffect(() => {
     if (open && eventId) {
@@ -90,7 +114,11 @@ export function DispatchModal({ open, onOpenChange, eventId, onDispatched }: Pro
         })
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false));
+
+      // 날씨 자동 조회
+      fetchWeather(icao);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, eventId]);
 
   function toggleCheck(key: string) {
@@ -139,6 +167,7 @@ export function DispatchModal({ open, onOpenChange, eventId, onDispatched }: Pro
   }
 
   const maint = data?.maintenanceStatus ? MAINT_BADGE[data.maintenanceStatus] : null;
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -216,6 +245,16 @@ export function DispatchModal({ open, onOpenChange, eventId, onDispatched }: Pro
               )}
             </div>
 
+            {/* Weather */}
+            <WeatherCard
+              icao={icao}
+              onIcaoChange={setIcao}
+              onRefresh={() => fetchWeather(icao)}
+              weather={weather}
+              flightStart={data.event.startTime}
+              flightEnd={data.event.endTime}
+            />
+
             {/* Pre-flight Checklist */}
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Pre-flight Checklist</h3>
@@ -263,5 +302,106 @@ export function DispatchModal({ open, onOpenChange, eventId, onDispatched }: Pro
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── WeatherCard ────────────────────────────────────────────────────────────
+
+interface WeatherCardProps {
+  icao: string;
+  onIcaoChange: (v: string) => void;
+  onRefresh: () => void;
+  weather: WeatherState;
+  flightStart: string;
+  flightEnd: string;
+}
+
+function WeatherCard({ icao, onIcaoChange, onRefresh, weather, flightStart, flightEnd }: WeatherCardProps) {
+  const { metar, taf, loading, error } = weather;
+
+  const fltCat: FlightCategory = metar?.fltCat ?? "UNKNOWN";
+  const badgeClass = flightCategoryBadgeClass(fltCat);
+  const catLabel = flightCategoryLabel(fltCat);
+
+  // 비행 시간대 TAF 예보
+  const windowForecasts = taf?.fcsts
+    ? getForecastsForWindow(taf.fcsts, new Date(flightStart), new Date(flightEnd))
+    : [];
+  const worstCat = windowForecasts.length > 0
+    ? worstFlightCategory(windowForecasts.map((f) => f.fltCat))
+    : null;
+
+  return (
+    <div className="rounded border p-3 space-y-2">
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">Weather</h3>
+        <div className="flex items-center gap-1.5">
+          <Input
+            className="h-7 w-20 text-xs font-mono uppercase"
+            value={icao}
+            maxLength={4}
+            onChange={(e) => onIcaoChange(e.target.value.toUpperCase())}
+            onBlur={() => onRefresh()}
+            onKeyDown={(e) => e.key === "Enter" && onRefresh()}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={onRefresh}
+            disabled={loading}
+          >
+            {loading ? "..." : "Refresh"}
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-xs text-destructive">{error}</p>
+      )}
+
+      {!metar && !loading && !error && (
+        <p className="text-xs text-muted-foreground">No METAR available for {icao}</p>
+      )}
+
+      {metar && (
+        <div className="space-y-2">
+          {/* Current conditions */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="outline" className={`text-xs font-semibold ${badgeClass}`}>
+              {catLabel}
+            </Badge>
+            {metar.visib != null && (
+              <span className="text-xs text-muted-foreground">Vis {metar.visib}SM</span>
+            )}
+            {metar.wdir != null && metar.wspd != null && (
+              <span className="text-xs text-muted-foreground">
+                Wind {String(metar.wdir).padStart(3, "0")}°/{metar.wspd}kt
+                {metar.wgst ? ` G${metar.wgst}kt` : ""}
+              </span>
+            )}
+            {metar.altim != null && (
+              <span className="text-xs text-muted-foreground">Alt {metar.altim.toFixed(2)}</span>
+            )}
+          </div>
+
+          {/* Raw METAR */}
+          <p className="text-xs font-mono text-muted-foreground bg-muted/40 rounded px-2 py-1 break-all">
+            {metar.rawOb}
+          </p>
+        </div>
+      )}
+
+      {/* TAF flight window forecast */}
+      {worstCat && (
+        <div className="flex items-center gap-2 pt-1 border-t">
+          <span className="text-xs text-muted-foreground">During flight:</span>
+          <Badge variant="outline" className={`text-xs font-semibold ${flightCategoryBadgeClass(worstCat)}`}>
+            {flightCategoryLabel(worstCat)} (forecast)
+          </Badge>
+        </div>
+      )}
+    </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Settings,
   Users,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ const ALL_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/schedule", label: "Schedule", icon: CalendarDays },
   { href: "/dashboard/aircraft", label: "Aircraft", icon: Plane },
+  { href: "/dashboard/dispatch", label: "Dispatch Log", icon: ClipboardList },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
   { href: "/dashboard/instructors", label: "Instructors", icon: GraduationCap },
   { href: "/dashboard/mechanics", label: "Mechanics", icon: Wrench },
@@ -32,6 +34,8 @@ const ROLE_ACCESS: Record<string, string[]> = {
   instructor: [
     "/dashboard",
     "/dashboard/schedule",
+    "/dashboard/aircraft",
+    "/dashboard/dispatch",
     "/dashboard/clients",
     "/dashboard/instructors",
     "/dashboard/chat",
@@ -42,6 +46,7 @@ const ROLE_ACCESS: Record<string, string[]> = {
     "/dashboard",
     "/dashboard/schedule",
     "/dashboard/aircraft",
+    "/dashboard/dispatch",
     "/dashboard/inventory",
     "/dashboard/chat",
     "/dashboard/settings",
