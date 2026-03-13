@@ -6,11 +6,19 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, AlertCircle, XCircle, PlaneTakeoff, Search } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { CheckCircle2, AlertCircle, XCircle, PlaneTakeoff, Search, FileText, PlaneLanding } from "lucide-react";
 
 interface DispatchLog {
   id: string;
@@ -42,11 +50,21 @@ export default function DispatchHistoryPage() {
   const [logs, setLogs] = useState<DispatchLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [generating, setGenerating] = useState<string | null>(null);
+
+  // Return dialog state
+  const [returnTarget, setReturnTarget] = useState<DispatchLog | null>(null);
+  const [hobbsIn, setHobbsIn] = useState("");
+  const [tachIn, setTachIn] = useState("");
+  const [returnNotes, setReturnNotes] = useState("");
+  const [returning, setReturning] = useState(false);
+  const [returnError, setReturnError] = useState("");
 
   useEffect(() => {
     fetch("/api/dispatch")
       .then((r) => r.ok ? r.json() : [])
       .then(setLogs)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -62,6 +80,86 @@ export default function DispatchHistoryPage() {
 
   const totalHobbs = filtered.reduce((s, l) => s + (l.hobbsFlown ?? 0), 0);
   const totalFlights = filtered.filter((l) => l.status === "returned").length;
+
+  async function generateInvoice(dispatchId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setGenerating(dispatchId);
+    const res = await fetch("/api/invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dispatchLogId: dispatchId }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      router.push(`/dashboard/invoices/${data.id}`);
+    }
+    setGenerating(null);
+  }
+
+  function openReturnDialog(log: DispatchLog, e: React.MouseEvent) {
+    e.stopPropagation();
+    setReturnTarget(log);
+    setHobbsIn(log.hobbsOut.toFixed(2));
+    setTachIn(log.tachOut.toFixed(2));
+    setReturnNotes(log.notes ?? "");
+    setReturnError("");
+  }
+
+  async function submitReturn() {
+    if (!returnTarget) return;
+    const hIn = parseFloat(hobbsIn);
+    const tIn = parseFloat(tachIn);
+    if (isNaN(hIn) || isNaN(tIn)) {
+      setReturnError("Hobbs In and Tach In must be valid numbers.");
+      return;
+    }
+    if (hIn < returnTarget.hobbsOut) {
+      setReturnError(`Hobbs In (${hIn}) cannot be less than Hobbs Out (${returnTarget.hobbsOut}).`);
+      return;
+    }
+    if (tIn < returnTarget.tachOut) {
+      setReturnError(`Tach In (${tIn}) cannot be less than Tach Out (${returnTarget.tachOut}).`);
+      return;
+    }
+
+    setReturning(true);
+    setReturnError("");
+    const res = await fetch("/api/dispatch", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        dispatchId: returnTarget.id,
+        hobbsIn: hIn,
+        tachIn: tIn,
+        notes: returnNotes || null,
+      }),
+    });
+
+    if (res.ok) {
+      const updated = await res.json();
+      setLogs((prev) =>
+        prev.map((l) =>
+          l.id === updated.id
+            ? {
+                ...l,
+                status: "returned",
+                hobbsIn: updated.hobbsIn,
+                tachIn: updated.tachIn,
+                hobbsFlown: updated.hobbsFlown,
+                tachFlown: updated.tachFlown,
+                returnTime: updated.returnTime,
+                notes: updated.notes,
+              }
+            : l
+        )
+      );
+      setReturnTarget(null);
+    } else {
+      const data = await res.json();
+      setReturnError(data.error ?? "Failed to record return.");
+    }
+    setReturning(false);
+  }
 
   return (
     <div className="space-y-4">
@@ -127,9 +225,8 @@ export default function DispatchHistoryPage() {
                   <div
                     key={log.id}
                     className="flex items-center gap-4 rounded border p-3 hover:bg-slate-50 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/dashboard/aircraft/${log.aircraftId}`)}
+                    onClick={() => router.push(`/dashboard/dispatch/${log.id}`)}
                   >
-                    {/* Icon */}
                     <PlaneTakeoff className="h-4 w-4 text-muted-foreground shrink-0" />
 
                     {/* Aircraft */}
@@ -170,13 +267,40 @@ export default function DispatchHistoryPage() {
                       )}
                     </div>
 
-                    {/* Status + Preflight */}
+                    {/* Status + Maint */}
                     <div className="flex items-center gap-2 shrink-0">
                       <MaintIcon className={`h-4 w-4 ${maintColor}`} />
                       <Badge variant="outline" className={`text-xs ${STATUS_BADGE[log.status] ?? ""}`}>
                         {log.status}
                       </Badge>
                     </div>
+
+                    {/* Return button — only for in-progress flights */}
+                    {log.status === "dispatched" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0 h-7 px-2 text-xs gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                        onClick={(e) => openReturnDialog(log, e)}
+                      >
+                        <PlaneLanding className="h-3.5 w-3.5" />
+                        Return
+                      </Button>
+                    )}
+
+                    {/* Invoice button — only for returned flights */}
+                    {log.status === "returned" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0 h-7 px-2 text-xs gap-1"
+                        disabled={generating === log.id}
+                        onClick={(e) => generateInvoice(log.id, e)}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        {generating === log.id ? "..." : "Invoice"}
+                      </Button>
+                    )}
                   </div>
                 );
               })}
@@ -184,6 +308,82 @@ export default function DispatchHistoryPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Return Dialog */}
+      <Dialog open={!!returnTarget} onOpenChange={(open) => { if (!open) setReturnTarget(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Record Return</DialogTitle>
+          </DialogHeader>
+          {returnTarget && (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">
+                {returnTarget.aircraftRegistration} · {returnTarget.pilotName ?? "Unknown pilot"}
+              </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Hobbs In</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={hobbsIn}
+                    onChange={(e) => setHobbsIn(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">Out: {returnTarget.hobbsOut.toFixed(2)}</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tach In</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={tachIn}
+                    onChange={(e) => setTachIn(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">Out: {returnTarget.tachOut.toFixed(2)}</p>
+                </div>
+              </div>
+
+              {hobbsIn && tachIn && !isNaN(parseFloat(hobbsIn)) && !isNaN(parseFloat(tachIn)) && (
+                <p className="text-xs text-muted-foreground bg-slate-50 rounded px-3 py-2">
+                  Hobbs flown: <span className="font-semibold text-foreground">{Math.max(0, parseFloat(hobbsIn) - returnTarget.hobbsOut).toFixed(1)} hrs</span>
+                  {" · "}
+                  Tach flown: <span className="font-semibold text-foreground">{Math.max(0, parseFloat(tachIn) - returnTarget.tachOut).toFixed(1)} hrs</span>
+                </p>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Notes (optional)</Label>
+                <Input
+                  value={returnNotes}
+                  onChange={(e) => setReturnNotes(e.target.value)}
+                  placeholder="Any notes about the return..."
+                  className="h-8 text-sm"
+                />
+              </div>
+
+              {returnError && (
+                <p className="text-xs text-red-600">{returnError}</p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setReturnTarget(null)} disabled={returning}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={submitReturn}
+              disabled={returning}
+              className="bg-[#1A6FB5] hover:bg-[#155d99]"
+            >
+              {returning ? "Saving..." : "Confirm Return"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

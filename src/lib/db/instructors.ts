@@ -120,6 +120,8 @@ export async function upsertInstructorSettings(
     cfiNumber?: string | null;
     cfiExpiration?: string | null;
     isAuthorized?: boolean;
+    groundRate?: number;
+    flightRate?: number;
     notes?: string | null;
   }
 ) {
@@ -129,6 +131,8 @@ export async function upsertInstructorSettings(
     cfiNumber: input.cfiNumber ?? null,
     cfiExpiration: input.cfiExpiration ? new Date(input.cfiExpiration) : null,
     isAuthorized: input.isAuthorized ?? true,
+    groundRate: input.groundRate ?? 0,
+    flightRate: input.flightRate ?? 0,
     notes: input.notes ?? null,
   };
 

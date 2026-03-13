@@ -30,6 +30,7 @@ interface Aircraft {
   totalHours: number;
   hobbsHours: number;
   tachHours: number;
+  hourlyRate: number;
   year: number | null;
   emptyWeight: number | null;
   maxTakeoffWeight: number | null;
@@ -42,6 +43,7 @@ interface Aircraft {
   fuelPerWingGallons: number | null;
   oilCapacityQuarts: string | null;
   maxEnduranceHours: number | null;
+  vSpeeds: Record<string, string> | null;
   notes: string | null;
 }
 
@@ -108,6 +110,7 @@ export default function AircraftPage() {
       totalHours: ac.totalHours,
       hobbsHours: ac.hobbsHours ?? 0,
       tachHours: ac.tachHours ?? 0,
+      hourlyRate: ac.hourlyRate ?? 0,
       year: ac.year ?? null,
       emptyWeight: ac.emptyWeight ?? null,
       maxTakeoffWeight: ac.maxTakeoffWeight ?? null,
@@ -120,6 +123,7 @@ export default function AircraftPage() {
       fuelPerWingGallons: ac.fuelPerWingGallons ?? null,
       oilCapacityQuarts: ac.oilCapacityQuarts ?? "",
       maxEnduranceHours: ac.maxEnduranceHours ?? null,
+      vSpeeds: (ac.vSpeeds as AircraftFormData["vSpeeds"]) ?? {},
       notes: ac.notes ?? "",
     });
     setFormError(null);

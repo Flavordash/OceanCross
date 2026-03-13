@@ -7,6 +7,53 @@ import {
 } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
+// ── Full dispatch detail (for print/view) ─────────────
+
+export async function getDispatchDetail(dispatchId: string) {
+  const [row] = await db
+    .select({
+      id: dispatchLogs.id,
+      status: dispatchLogs.status,
+      hobbsOut: dispatchLogs.hobbsOut,
+      tachOut: dispatchLogs.tachOut,
+      hobbsIn: dispatchLogs.hobbsIn,
+      tachIn: dispatchLogs.tachIn,
+      hobbsFlown: dispatchLogs.hobbsFlown,
+      tachFlown: dispatchLogs.tachFlown,
+      maintenanceStatus: dispatchLogs.maintenanceStatus,
+      preflightChecks: dispatchLogs.preflightChecks,
+      departTime: dispatchLogs.departTime,
+      returnTime: dispatchLogs.returnTime,
+      notes: dispatchLogs.notes,
+      aircraftId: dispatchLogs.aircraftId,
+      aircraftRegistration: aircraft.registration,
+      aircraftModel: aircraft.model,
+      pilotId: dispatchLogs.pilotId,
+      pilotName: profiles.fullName,
+      instructorId: dispatchLogs.instructorId,
+    })
+    .from(dispatchLogs)
+    .leftJoin(aircraft, eq(dispatchLogs.aircraftId, aircraft.id))
+    .leftJoin(profiles, eq(dispatchLogs.pilotId, profiles.id))
+    .where(eq(dispatchLogs.id, dispatchId))
+    .limit(1);
+
+  if (!row) return null;
+
+  // Load instructor name separately if present
+  let instructorName: string | null = null;
+  if (row.instructorId) {
+    const [inst] = await db
+      .select({ fullName: profiles.fullName })
+      .from(profiles)
+      .where(eq(profiles.id, row.instructorId))
+      .limit(1);
+    instructorName = inst?.fullName ?? null;
+  }
+
+  return { ...row, instructorName };
+}
+
 export async function getDispatchHistory(limit = 50) {
   return db
     .select({

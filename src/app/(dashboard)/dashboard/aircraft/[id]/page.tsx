@@ -17,8 +17,13 @@ import {
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Clock, Gauge, Weight, Fuel, PlaneTakeoff, CheckCircle2, AlertCircle, XCircle } from "lucide-react";
+import { ArrowLeft, Clock, Gauge, Weight, Fuel, PlaneTakeoff, CheckCircle2, AlertCircle, XCircle, Pencil, DollarSign } from "lucide-react";
 import { RemindersTable } from "@/components/aircraft/reminders-table";
+import {
+  AircraftFormDialog,
+  AircraftFormData,
+  EMPTY_AIRCRAFT_FORM,
+} from "@/components/aircraft/aircraft-form-dialog";
 
 interface DispatchLog {
   id: string;
@@ -44,6 +49,7 @@ interface Aircraft {
   totalHours: number;
   hobbsHours: number;
   tachHours: number;
+  hourlyRate: number;
   year: number | null;
   emptyWeight: number | null;
   maxTakeoffWeight: number | null;
@@ -56,6 +62,7 @@ interface Aircraft {
   fuelPerWingGallons: number | null;
   oilCapacityQuarts: string | null;
   maxEnduranceHours: number | null;
+  vSpeeds: Record<string, string> | null;
   notes: string | null;
 }
 
@@ -135,6 +142,33 @@ function InfoRow({ label, value, unit }: { label: string; value: string | number
   );
 }
 
+function aircraftToForm(ac: Aircraft): AircraftFormData {
+  return {
+    registration: ac.registration,
+    type: ac.type,
+    model: ac.model,
+    status: ac.status,
+    totalHours: ac.totalHours,
+    hobbsHours: ac.hobbsHours ?? 0,
+    tachHours: ac.tachHours ?? 0,
+    hourlyRate: ac.hourlyRate ?? 0,
+    year: ac.year ?? null,
+    emptyWeight: ac.emptyWeight ?? null,
+    maxTakeoffWeight: ac.maxTakeoffWeight ?? null,
+    usefulLoad: ac.usefulLoad ?? null,
+    maxPassengers: ac.maxPassengers ?? null,
+    luggageCapacityLbs: ac.luggageCapacityLbs ?? null,
+    fuelCapacityGallons: ac.fuelCapacityGallons ?? null,
+    fuelUsableGallons: ac.fuelUsableGallons ?? null,
+    fuelWeightLbs: ac.fuelWeightLbs ?? null,
+    fuelPerWingGallons: ac.fuelPerWingGallons ?? null,
+    oilCapacityQuarts: ac.oilCapacityQuarts ?? "",
+    maxEnduranceHours: ac.maxEnduranceHours ?? null,
+    vSpeeds: (ac.vSpeeds as AircraftFormData["vSpeeds"]) ?? {},
+    notes: ac.notes ?? "",
+  };
+}
+
 export default function AircraftDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -148,6 +182,13 @@ export default function AircraftDetailPage() {
   const [role, setRole] = useState("student");
   const [loading, setLoading] = useState(true);
 
+  // Edit form state
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState<AircraftFormData>(EMPTY_AIRCRAFT_FORM);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const isAdmin = role === "admin";
   const canEdit = role === "admin" || role === "mechanic";
 
   useEffect(() => {
@@ -161,29 +202,60 @@ export default function AircraftDetailPage() {
       await loadAll();
       setLoading(false);
     }
-    init();
+    init().catch(() => setLoading(false));
   }, [aircraftId]);
 
   async function loadAll() {
     const [acRes, schedRes, maintRes, remRes, flightRes] = await Promise.all([
-      fetch(`/api/aircraft?id=${aircraftId}`),
-      fetch(`/api/aircraft?id=${aircraftId}&detail=schedule`),
-      fetch(`/api/aircraft?id=${aircraftId}&detail=maintenance`),
-      fetch(`/api/aircraft/reminders?aircraftId=${aircraftId}`),
-      fetch(`/api/dispatch?aircraftId=${aircraftId}`),
+      fetch(`/api/aircraft?id=${aircraftId}`).catch(() => null),
+      fetch(`/api/aircraft?id=${aircraftId}&detail=schedule`).catch(() => null),
+      fetch(`/api/aircraft?id=${aircraftId}&detail=maintenance`).catch(() => null),
+      fetch(`/api/aircraft/reminders?aircraftId=${aircraftId}`).catch(() => null),
+      fetch(`/api/dispatch?aircraftId=${aircraftId}`).catch(() => null),
     ]);
 
-    if (acRes.ok) setAc(await acRes.json());
-    if (schedRes.ok) setSchedule(await schedRes.json());
-    if (maintRes.ok) setMaintenance(await maintRes.json());
-    if (remRes.ok) setReminders(await remRes.json());
-    if (flightRes.ok) setFlights(await flightRes.json());
+    if (acRes?.ok) setAc(await acRes.json());
+    if (schedRes?.ok) setSchedule(await schedRes.json());
+    if (maintRes?.ok) setMaintenance(await maintRes.json());
+    if (remRes?.ok) setReminders(await remRes.json());
+    if (flightRes?.ok) setFlights(await flightRes.json());
   }
 
   function refreshReminders() {
     fetch(`/api/aircraft/reminders?aircraftId=${aircraftId}`)
       .then((r) => r.ok ? r.json() : [])
       .then(setReminders);
+  }
+
+  function openEdit() {
+    if (!ac) return;
+    setForm(aircraftToForm(ac));
+    setFormError(null);
+    setFormOpen(true);
+  }
+
+  async function handleSave() {
+    setFormError(null);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/aircraft", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: aircraftId, ...form }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setFormError(data.error ?? "Save failed");
+        return;
+      }
+      const updated = await res.json();
+      setAc(updated);
+      setFormOpen(false);
+    } catch {
+      setFormError("Network error. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading || !ac) {
@@ -215,6 +287,11 @@ export default function AircraftDetailPage() {
           </div>
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
+        {isAdmin && (
+          <Button size="sm" variant="outline" onClick={openEdit} className="gap-1.5">
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </Button>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -265,19 +342,20 @@ export default function AircraftDetailPage() {
             </CardContent>
           </Card>
         )}
-        {ac.usefulLoad && (
-          <Card>
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50">
-                <Fuel className="h-5 w-5 text-teal-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Useful Load</p>
-                <p className="text-lg font-bold">{ac.usefulLoad.toLocaleString()} <span className="text-xs font-normal text-muted-foreground">lbs</span></p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50">
+              <DollarSign className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Rental Rate</p>
+              <p className="text-lg font-bold">
+                ${(ac.hourlyRate ?? 0).toFixed(0)}
+                <span className="text-xs font-normal text-muted-foreground">/hr</span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs */}
@@ -316,6 +394,19 @@ export default function AircraftDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Billing */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">Billing</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <InfoRow label="Rental Rate" value={`$${(ac.hourlyRate ?? 0).toFixed(2)}`} unit="/hr" />
+                {!ac.hourlyRate && (
+                  <p className="text-sm text-muted-foreground">No rate set</p>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Weight & Balance */}
             <Card>
               <CardHeader className="pb-2">
@@ -349,6 +440,41 @@ export default function AircraftDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* V-Speeds */}
+            {ac.vSpeeds && Object.keys(ac.vSpeeds).length > 0 && (
+              <Card className="md:col-span-2 lg:col-span-3">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">V-Speeds (KIAS)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    {[
+                      { key: "Vr", label: "Vr", desc: "Rotation" },
+                      { key: "Vx", label: "Vx", desc: "Best Angle" },
+                      { key: "Vy", label: "Vy", desc: "Best Rate" },
+                      { key: "Va", label: "Va", desc: "Maneuvering" },
+                      { key: "Vs", label: "Vs", desc: "Stall" },
+                      { key: "Vso", label: "Vso", desc: "Stall (Landing)" },
+                      { key: "Vfe", label: "Vfe", desc: "Max Flap" },
+                      { key: "Vno", label: "Vno", desc: "Max Cruise" },
+                      { key: "Vne", label: "Vne", desc: "Never Exceed" },
+                      { key: "best_glide", label: "Best Glide", desc: "Glide" },
+                      { key: "climb", label: "Vc", desc: "Climb" },
+                      { key: "max_crosswind", label: "X-Wind", desc: "Max Crosswind" },
+                    ]
+                      .filter(({ key }) => ac.vSpeeds![key])
+                      .map(({ key, label, desc }) => (
+                        <div key={key} className="rounded-lg bg-slate-50 p-3 text-center">
+                          <p className="text-xs text-muted-foreground">{label}</p>
+                          <p className="text-lg font-bold">{ac.vSpeeds![key]}</p>
+                          <p className="text-[10px] text-muted-foreground">{desc}</p>
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
 
@@ -399,7 +525,7 @@ export default function AircraftDetailPage() {
                     </div>
                   </div>
 
-                  {/* Log rows */}
+                  {/* Log rows — clickable */}
                   {flights.map((f) => {
                     const maint = f.maintenanceStatus;
                     const MaintIcon = maint === "pass" ? CheckCircle2 : maint === "review" ? AlertCircle : XCircle;
@@ -411,7 +537,11 @@ export default function AircraftDetailPage() {
                       : "bg-slate-100 text-slate-600";
 
                     return (
-                      <div key={f.id} className="flex items-center justify-between rounded border p-3 gap-3">
+                      <div
+                        key={f.id}
+                        className="flex items-center justify-between rounded border p-3 gap-3 hover:bg-slate-50 cursor-pointer transition-colors"
+                        onClick={() => router.push(`/dashboard/dispatch/${f.id}`)}
+                      >
                         <div className="flex items-center gap-2 shrink-0">
                           <PlaneTakeoff className="h-4 w-4 text-muted-foreground" />
                         </div>
@@ -510,6 +640,20 @@ export default function AircraftDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Dialog — admin only */}
+      {isAdmin && (
+        <AircraftFormDialog
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          editId={aircraftId}
+          form={form}
+          setForm={setForm}
+          onSave={handleSave}
+          saving={saving}
+          error={formError}
+        />
+      )}
     </div>
   );
 }

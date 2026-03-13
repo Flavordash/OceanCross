@@ -75,6 +75,21 @@ async function visionExtract(images: string[]): Promise<AircraftExtracted> {
 
 // ── Types ──
 
+export interface VSpeeds {
+  Vr?: string;
+  Vx?: string;
+  Vy?: string;
+  Va?: string;
+  Vs?: string;
+  Vso?: string;
+  Vfe?: string;
+  Vno?: string;
+  Vne?: string;
+  best_glide?: string;
+  climb?: string;
+  max_crosswind?: string;
+}
+
 export interface AircraftFormData {
   registration: string;
   type: string;
@@ -83,6 +98,7 @@ export interface AircraftFormData {
   totalHours: number;
   hobbsHours: number;
   tachHours: number;
+  hourlyRate: number;
   year: number | null;
   emptyWeight: number | null;
   maxTakeoffWeight: number | null;
@@ -95,6 +111,7 @@ export interface AircraftFormData {
   fuelPerWingGallons: number | null;
   oilCapacityQuarts: string;
   maxEnduranceHours: number | null;
+  vSpeeds: VSpeeds;
   notes: string;
 }
 
@@ -106,6 +123,7 @@ export const EMPTY_AIRCRAFT_FORM: AircraftFormData = {
   totalHours: 0,
   hobbsHours: 0,
   tachHours: 0,
+  hourlyRate: 0,
   year: null,
   emptyWeight: null,
   maxTakeoffWeight: null,
@@ -118,6 +136,7 @@ export const EMPTY_AIRCRAFT_FORM: AircraftFormData = {
   fuelPerWingGallons: null,
   oilCapacityQuarts: "",
   maxEnduranceHours: null,
+  vSpeeds: {},
   notes: "",
 };
 
@@ -366,6 +385,9 @@ export function AircraftFormDialog({
         fuelPerWingGallons: ex.fuel_per_wing_gallons ?? form.fuelPerWingGallons,
         oilCapacityQuarts: ex.oil_capacity_quarts ?? form.oilCapacityQuarts,
         maxEnduranceHours: ex.max_endurance_hours ?? form.maxEnduranceHours,
+        vSpeeds: Object.keys(ex.v_speeds ?? {}).length > 0
+          ? { ...form.vSpeeds, ...ex.v_speeds }
+          : form.vSpeeds,
       });
       setExtracted(true);
     } catch (e) {
@@ -511,6 +533,24 @@ export function AircraftFormDialog({
             </div>
           </div>
 
+          {/* ── Rental Rate ── */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Billing
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <NumField
+                label="Rental Rate ($/hr)"
+                value={form.hourlyRate}
+                onChange={(v) =>
+                  setForm({ ...form, hourlyRate: v ?? 0 })
+                }
+                step="0.01"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
           {/* ── Weight & Balance ── */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -634,6 +674,67 @@ export function AircraftFormDialog({
                 rows={2}
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
               />
+            </div>
+          </div>
+
+          {/* ── V-Speeds ── */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              V-Speeds (KIAS)
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              {(["Vr","Vx","Vy","Va","Vs","Vso","Vfe","Vno","Vne"] as const).map((key) => (
+                <div key={key} className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">{key}</Label>
+                  <Input
+                    type="number"
+                    value={form.vSpeeds[key] ?? ""}
+                    onChange={(e) =>
+                      setForm({ ...form, vSpeeds: { ...form.vSpeeds, [key]: e.target.value || undefined } })
+                    }
+                    placeholder="kts"
+                    className="h-8 text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Best Glide</Label>
+                <Input
+                  type="number"
+                  value={form.vSpeeds.best_glide ?? ""}
+                  onChange={(e) =>
+                    setForm({ ...form, vSpeeds: { ...form.vSpeeds, best_glide: e.target.value || undefined } })
+                  }
+                  placeholder="kts"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Climb (Vc)</Label>
+                <Input
+                  type="number"
+                  value={form.vSpeeds.climb ?? ""}
+                  onChange={(e) =>
+                    setForm({ ...form, vSpeeds: { ...form.vSpeeds, climb: e.target.value || undefined } })
+                  }
+                  placeholder="kts"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Max Crosswind</Label>
+                <Input
+                  type="number"
+                  value={form.vSpeeds.max_crosswind ?? ""}
+                  onChange={(e) =>
+                    setForm({ ...form, vSpeeds: { ...form.vSpeeds, max_crosswind: e.target.value || undefined } })
+                  }
+                  placeholder="kts"
+                  className="h-8 text-sm"
+                />
+              </div>
             </div>
           </div>
 

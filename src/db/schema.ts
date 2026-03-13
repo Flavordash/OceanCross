@@ -136,6 +136,7 @@ export const aircraft = pgTable("aircraft", {
   totalHours: integer("total_hours").notNull().default(0),
   hobbsHours: real("hobbs_hours").notNull().default(0),
   tachHours: real("tach_hours").notNull().default(0),
+  hourlyRate: real("hourly_rate").notNull().default(0), // rental rate $/hr
   year: integer("year"),
   emptyWeight: real("empty_weight"),
   maxTakeoffWeight: real("max_takeoff_weight"),
@@ -560,6 +561,8 @@ export const instructorSettings = pgTable("instructor_settings", {
   cfiNumber: text("cfi_number"),
   cfiExpiration: timestamp("cfi_expiration", { withTimezone: true }),
   isAuthorized: boolean("is_authorized").notNull().default(true),
+  groundRate: real("ground_rate").notNull().default(0), // $/hr ground instruction
+  flightRate: real("flight_rate").notNull().default(0), // $/hr flight instruction
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -645,6 +648,58 @@ export const aircraftWbStations = pgTable("aircraft_wb_stations", {
   arm: real("arm").notNull(),
   minWeight: real("min_weight"),
   maxWeight: real("max_weight"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ── Invoices ─────────────────────────────────────────
+
+export const invoiceStatusEnum = pgEnum("invoice_status", [
+  "draft",
+  "sent",
+  "paid",
+  "void",
+]);
+
+export const invoices = pgTable("invoices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  invoiceNumber: integer("invoice_number").notNull(),
+  dispatchLogId: uuid("dispatch_log_id").references(() => dispatchLogs.id),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => profiles.id),
+  status: invoiceStatusEnum("status").notNull().default("draft"),
+  subtotal: real("subtotal").notNull().default(0),
+  taxRate: real("tax_rate").notNull().default(0.07), // Pasco County 7%
+  taxAmount: real("tax_amount").notNull().default(0),
+  total: real("total").notNull().default(0),
+  previousBalance: real("previous_balance").notNull().default(0),
+  notes: text("notes"),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+}, (table) => [
+  index("invoices_client_id_idx").on(table.clientId),
+  index("invoices_dispatch_log_id_idx").on(table.dispatchLogId),
+]);
+
+export const invoiceItems = pgTable("invoice_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  invoiceId: uuid("invoice_id")
+    .notNull()
+    .references(() => invoices.id, { onDelete: "cascade" }),
+  description: text("description").notNull(),
+  quantity: real("quantity").notNull(),
+  rate: real("rate").notNull(),
+  amount: real("amount").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

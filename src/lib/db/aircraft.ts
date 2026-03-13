@@ -17,6 +17,7 @@ export interface CreateAircraftInput {
   totalHours?: number;
   hobbsHours?: number;
   tachHours?: number;
+  hourlyRate?: number;
   year?: number | null;
   emptyWeight?: number | null;
   maxTakeoffWeight?: number | null;
@@ -29,6 +30,7 @@ export interface CreateAircraftInput {
   fuelPerWingGallons?: number | null;
   oilCapacityQuarts?: string | null;
   maxEnduranceHours?: number | null;
+  vSpeeds?: Record<string, string> | null;
   notes?: string | null;
 }
 
@@ -40,6 +42,7 @@ export interface UpdateAircraftInput {
   totalHours?: number;
   hobbsHours?: number;
   tachHours?: number;
+  hourlyRate?: number;
   year?: number | null;
   emptyWeight?: number | null;
   maxTakeoffWeight?: number | null;
@@ -52,6 +55,7 @@ export interface UpdateAircraftInput {
   fuelPerWingGallons?: number | null;
   oilCapacityQuarts?: string | null;
   maxEnduranceHours?: number | null;
+  vSpeeds?: Record<string, string> | null;
   notes?: string | null;
 }
 
@@ -82,6 +86,7 @@ export async function createAircraft(input: CreateAircraftInput) {
       totalHours: input.totalHours ?? 0,
       hobbsHours: input.hobbsHours ?? 0,
       tachHours: input.tachHours ?? 0,
+      hourlyRate: input.hourlyRate ?? 0,
       year: input.year ?? null,
       emptyWeight: input.emptyWeight ?? null,
       maxTakeoffWeight: input.maxTakeoffWeight ?? null,
@@ -94,6 +99,7 @@ export async function createAircraft(input: CreateAircraftInput) {
       fuelPerWingGallons: input.fuelPerWingGallons ?? null,
       oilCapacityQuarts: input.oilCapacityQuarts ?? null,
       maxEnduranceHours: input.maxEnduranceHours ?? null,
+      vSpeeds: input.vSpeeds ?? null,
       notes: input.notes ?? null,
     })
     .returning();
@@ -109,6 +115,7 @@ export async function updateAircraft(id: string, input: UpdateAircraftInput) {
   if (input.totalHours !== undefined) values.totalHours = input.totalHours;
   if (input.hobbsHours !== undefined) values.hobbsHours = input.hobbsHours;
   if (input.tachHours !== undefined) values.tachHours = input.tachHours;
+  if (input.hourlyRate !== undefined) values.hourlyRate = input.hourlyRate;
   if (input.year !== undefined) values.year = input.year;
   if (input.emptyWeight !== undefined) values.emptyWeight = input.emptyWeight;
   if (input.maxTakeoffWeight !== undefined) values.maxTakeoffWeight = input.maxTakeoffWeight;
@@ -121,6 +128,7 @@ export async function updateAircraft(id: string, input: UpdateAircraftInput) {
   if (input.fuelPerWingGallons !== undefined) values.fuelPerWingGallons = input.fuelPerWingGallons;
   if (input.oilCapacityQuarts !== undefined) values.oilCapacityQuarts = input.oilCapacityQuarts;
   if (input.maxEnduranceHours !== undefined) values.maxEnduranceHours = input.maxEnduranceHours;
+  if (input.vSpeeds !== undefined) values.vSpeeds = input.vSpeeds;
   if (input.notes !== undefined) values.notes = input.notes;
 
   const [row] = await db

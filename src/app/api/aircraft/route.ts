@@ -42,10 +42,10 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const { registration, type, model, status, totalHours, hobbsHours, tachHours,
-    year, emptyWeight, maxTakeoffWeight, usefulLoad, maxPassengers,
+    hourlyRate, year, emptyWeight, maxTakeoffWeight, usefulLoad, maxPassengers,
     luggageCapacityLbs, fuelCapacityGallons, fuelUsableGallons,
     fuelWeightLbs, fuelPerWingGallons, oilCapacityQuarts,
-    maxEnduranceHours, notes } = body;
+    maxEnduranceHours, vSpeeds, notes } = body;
 
   if (!registration || !type || !model) {
     return NextResponse.json({ error: "Registration, type, and model are required" }, { status: 400 });
@@ -54,10 +54,10 @@ export async function POST(request: NextRequest) {
   try {
     const ac = await createAircraft({
       registration, type, model, status, totalHours, hobbsHours, tachHours,
-      year, emptyWeight, maxTakeoffWeight, usefulLoad, maxPassengers,
+      hourlyRate, year, emptyWeight, maxTakeoffWeight, usefulLoad, maxPassengers,
       luggageCapacityLbs, fuelCapacityGallons, fuelUsableGallons,
       fuelWeightLbs, fuelPerWingGallons, oilCapacityQuarts,
-      maxEnduranceHours, notes,
+      maxEnduranceHours, vSpeeds, notes,
     });
     return NextResponse.json(ac, { status: 201 });
   } catch (e: unknown) {

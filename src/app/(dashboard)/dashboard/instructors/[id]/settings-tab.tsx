@@ -30,6 +30,8 @@ interface Settings {
   cfiNumber: string;
   cfiExpiration: string;
   isAuthorized: boolean;
+  groundRate: number;
+  flightRate: number;
   notes: string;
 }
 
@@ -53,6 +55,8 @@ export default function SettingsTab({ instructorId }: { instructorId: string }) 
     cfiNumber: "",
     cfiExpiration: "",
     isAuthorized: true,
+    groundRate: 0,
+    flightRate: 0,
     notes: "",
   });
   const [editingCfi, setEditingCfi] = useState(false);
@@ -92,6 +96,8 @@ export default function SettingsTab({ instructorId }: { instructorId: string }) 
           cfiNumber: data.cfiNumber ?? "",
           cfiExpiration: data.cfiExpiration ? data.cfiExpiration.split("T")[0] : "",
           isAuthorized: data.isAuthorized ?? true,
+          groundRate: data.groundRate ?? 0,
+          flightRate: data.flightRate ?? 0,
           notes: data.notes ?? "",
         };
         setSettings(s);
@@ -281,6 +287,38 @@ export default function SettingsTab({ instructorId }: { instructorId: string }) 
               </div>
             )}
           </div>
+          {/* Billing Rates */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Ground Rate ($/hr)</Label>
+              {editingCfi ? (
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={cfiForm.groundRate}
+                  onChange={(e) => setCfiForm({ ...cfiForm, groundRate: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+              ) : (
+                <p className="text-sm font-medium">${settings.groundRate.toFixed(2)}/hr</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Flight Rate ($/hr)</Label>
+              {editingCfi ? (
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={cfiForm.flightRate}
+                  onChange={(e) => setCfiForm({ ...cfiForm, flightRate: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+              ) : (
+                <p className="text-sm font-medium">${settings.flightRate.toFixed(2)}/hr</p>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Notes</Label>
             {editingCfi ? (
